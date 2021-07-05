@@ -1,0 +1,17 @@
+filters:
+  .*:
+    approvers:
+    - cynepco3hahue
+    - fromanirh
+    - marsik
+    - swatisehgal
+    - tal-or
+    - yanirq
+    reviewers:
+    - cynepco3hahue
+    - fromanirh
+    - marsik
+    - swatisehgal
+    - tal-or
+    - yanirq
+options: {}
