@@ -21,12 +21,12 @@ const (
 )
 
 func main() {
-	nrtupdaterArgs, resourcemonitorArgs, err := argsParse(os.Args[1:])
+	nrtupdaterArgs, resourcemonitorArgs, rteArgs, err := argsParse(os.Args[1:])
 	if err != nil {
 		log.Fatalf("failed to parse command line: %v", err)
 	}
 
-	err = resourcetopologyexporter.Execute(nrtupdaterArgs, resourcemonitorArgs)
+	err = resourcetopologyexporter.Execute(nrtupdaterArgs, resourcemonitorArgs, rteArgs)
 	if err != nil {
 		log.Fatalf("failed to execute: %v", err)
 	}
@@ -34,32 +34,41 @@ func main() {
 
 const helpTemplate string = `{{.ProgramName}}
   Usage:
-  {{.ProgramName}}	[--no-publish]
+  {{.ProgramName}}	[--debug]
+                        [--no-publish]
 			[--oneshot | --sleep-interval=<seconds>]
 			[--podresources-socket=<path>]
 			[--export-namespace=<namespace>]
 			[--watch-namespace=<namespace>]
 			[--sysfs=<mountpoint>]
+			[--kubelet-state-dir=<path>...]
 			[--kubelet-config-file=<path>]
+			[--reference-container=<spec>]
   {{.ProgramName}} -h | --help
   {{.ProgramName}} --version
   Options:
   -h --help                       Show this screen.
+  --debug                         Enable debug output. [Default: false]
   --version                       Output version and exit.
   --no-publish                    Do not publish discovered features to the
                                   cluster-local Kubernetes API server.
   --hostname                      Override the node hostname.
   --oneshot                       Update once and exit.
-  --sleep-interval=<seconds>      Time to sleep between re-labeling. Non-positive
-                                  value implies no re-labeling (i.e. infinite
-                                  sleep). [Default: 60s]
+  --sleep-interval=<seconds>      Time to sleep between podresources API polls.
+                                  [Default: 60s]
   --export-namespace=<namespace>  Namespace on which update CRDs. Use "" for all namespaces.
   --watch-namespace=<namespace>   Namespace to watch pods for. Use "" for all namespaces.
   --sysfs=<path>                  Top-level component path of sysfs. [Default: /sys]
   --kubelet-config-file=<path>    Kubelet config file path.
                                   [Default: /kubeletstate/config.yaml]
+  --kubelet-state-dir=<path>...   Kubelet state directory (RO access needed), for smart polling.
   --podresources-socket=<path>    Pod Resource Socket path to use.
-                                  [Default: /podresources/kubelet.sock]`
+                                  [Default: /podresources/kubelet.sock]
+  --reference-container=<spec>    Reference container, used to learn about the shared cpu pool
+                                  See: https://github.com/kubernetes/kubernetes/issues/102190
+                                  format of spec is namespace/podname/containername.
+				  Alternatively, you can use the env vars
+				  REFERENCE_NAMESPACE, REFERENCE_POD_NAME, REFERENCE_CONTAINER_NAME.`
 
 func getUsage() (string, error) {
 	var helpBuffer bytes.Buffer
@@ -83,13 +92,14 @@ func getUsage() (string, error) {
 
 // nrtupdaterArgsParse parses the command line arguments passed to the program.
 // The argument argv is passed only for testing purposes.
-func argsParse(argv []string) (nrtupdater.Args, resourcemonitor.Args, error) {
+func argsParse(argv []string) (nrtupdater.Args, resourcemonitor.Args, resourcetopologyexporter.Args, error) {
 	var nrtupdaterArgs nrtupdater.Args
 	var resourcemonitorArgs resourcemonitor.Args
+	var rteArgs resourcetopologyexporter.Args
 
 	usage, err := getUsage()
 	if err != nil {
-		return nrtupdaterArgs, resourcemonitorArgs, err
+		return nrtupdaterArgs, resourcemonitorArgs, rteArgs, err
 	}
 
 	arguments, _ := docopt.ParseArgs(usage, argv, fmt.Sprintf("%s %s", ProgramName, "TBD"))
@@ -109,14 +119,14 @@ func argsParse(argv []string) (nrtupdater.Args, resourcemonitor.Args, error) {
 		if nrtupdaterArgs.Hostname == "" {
 			nrtupdaterArgs.Hostname, err = os.Hostname()
 			if err != nil {
-				return nrtupdaterArgs, resourcemonitorArgs, fmt.Errorf("error getting the host name: %s", err)
+				return nrtupdaterArgs, resourcemonitorArgs, rteArgs, fmt.Errorf("error getting the host name: %w", err)
 			}
 		}
 	}
 
 	resourcemonitorArgs.SleepInterval, err = time.ParseDuration(arguments["--sleep-interval"].(string))
 	if err != nil {
-		return nrtupdaterArgs, resourcemonitorArgs, fmt.Errorf("invalid --sleep-interval specified: %s", err.Error())
+		return nrtupdaterArgs, resourcemonitorArgs, rteArgs, fmt.Errorf("invalid --sleep-interval specified: %w", err)
 	}
 	if ns, ok := arguments["--watch-namespace"].(string); ok {
 		resourcemonitorArgs.Namespace = ns
@@ -129,5 +139,20 @@ func argsParse(argv []string) (nrtupdater.Args, resourcemonitor.Args, error) {
 		resourcemonitorArgs.PodResourceSocketPath = path
 	}
 
-	return nrtupdaterArgs, resourcemonitorArgs, nil
+	if kubeletStateDirs, ok := arguments["--kubelet-state-dir"].([]string); ok {
+		resourcemonitorArgs.KubeletStateDirs = kubeletStateDirs
+	}
+
+	rteArgs.Debug = arguments["--debug"].(bool)
+	if refCnt, ok := arguments["--reference-container"].(string); ok {
+		rteArgs.ReferenceContainer, err = resourcetopologyexporter.ContainerIdentFromString(refCnt)
+		if err != nil {
+			return nrtupdaterArgs, resourcemonitorArgs, rteArgs, err
+		}
+	}
+	if rteArgs.ReferenceContainer == nil {
+		rteArgs.ReferenceContainer = resourcetopologyexporter.ContainerIdentFromEnv()
+	}
+
+	return nrtupdaterArgs, resourcemonitorArgs, rteArgs, nil
 }

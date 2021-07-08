@@ -356,8 +356,8 @@ github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7V
 github.com/jung-kurt/gofpdf v1.0.3-0.20190309125859-24315acbbda5/go.mod h1:7Id9E/uU8ce6rXgefFLlgrJj/GYY22cpxn+r32jIOes=
 github.com/k8stopologyawareschedwg/noderesourcetopology-api v0.0.8 h1:couInomNumuAT43qsHT1qHkdTApfYw+tVrx5v8EO+8o=
 github.com/k8stopologyawareschedwg/noderesourcetopology-api v0.0.8/go.mod h1:zRoCNg6LjSQewUwnpORw1VT9mP0rGNQlYy4WYaGWvHo=
-github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210621110700-8f08b26b210b h1:xzKlnzPfJzOhfbKNxldN4j2iCCAfg4VrrNSq3LP+m4g=
-github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210621110700-8f08b26b210b/go.mod h1:atGlODHWl78YlAHLDa9wu7wAaDyz6XqzXy/HDZrWGzU=
+github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210708081206-af9beab470c5 h1:Mzwh1cHRVuXjd0US+IM/BhhevHa4jIKO6ayJ1rotbgI=
+github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210708081206-af9beab470c5/go.mod h1:gRFF4IRx2QbfN6T9gsTBOp1B2yAbeKKeb2XZcDqpTDo=
 github.com/karrick/godirwalk v1.16.1/go.mod h1:j4mkqPuvaLI8mp1DroR3P6ad7cyYd4c1qeJ3RV7ULlk=
 github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI2bnpBCr8=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
