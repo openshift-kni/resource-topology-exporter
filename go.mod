@@ -38,3 +38,6 @@ replace (
 	k8s.io/mount-utils => k8s.io/mount-utils v0.21.0
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.21.0
 )
+
+// pinned u/s dep
+replace github.com/k8stopologyawareschedwg/resource-topology-exporter => github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210708081206-af9beab470c5

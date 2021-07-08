@@ -1,22 +1,20 @@
 COMMONENVVAR=GOOS=linux GOARCH=amd64
 BUILDENVVAR=CGO_ENABLED=0
+TOPOLOGYAPI_MANIFESTS=https://raw.githubusercontent.com/k8stopologyawareschedwg/noderesourcetopology-api/master/manifests
 
+KUBECLI ?= kubectl
 RUNTIME ?= podman
-REPOOWNER ?= swsehgal
+REPOOWNER ?= k8stopologyawarewg
 IMAGENAME ?= resource-topology-exporter
 IMAGETAG ?= latest
+RTE_CONTAINER_IMAGE ?= quay.io/$(REPOOWNER)/$(IMAGENAME):$(IMAGETAG)
 
 .PHONY: all
-all: deps-update build
-
-.PHONY: deps-update
-deps-update:
-	go mod tidy && \
-	go mod vendor
+all: build
 
 .PHONY: build
-build:
-	$(COMMONENVVAR) $(BUILDENVVAR) go build -ldflags '-w' -o bin/resource-topology-exporter cmd/resource-topology-exporter/main.go
+build: outdir
+	$(COMMONENVVAR) $(BUILDENVVAR) go build -ldflags '-w' -o _out/resource-topology-exporter cmd/resource-topology-exporter/main.go
 
 .PHONY: gofmt
 gofmt:
@@ -28,48 +26,60 @@ govet:
 	@echo "Running go vet"
 	go vet
 
-.PHONY: config
-config:
-	@echo "deploying configmap"
-	kubectl create -f config/examples/sriovdp-configmap.yaml
+outdir:
+	mkdir -p _out || :
+
+.PHONY: deps-update
+deps-update:
+	go mod tidy && go mod vendor
+
+.PHONY: deps-clean
+deps-clean:
+	rm -rf vendor
+
+.PHONY: binaries
+binaries: outdir deps-update build
+
+.PHONY: clean
+clean:
+	rm -rf _out
 
 .PHONY: image
-image: build
+image: binaries
 	@echo "building image"
-	$(RUNTIME) build -f images/Dockerfile -t quay.io/$(REPOOWNER)/$(IMAGENAME):$(IMAGETAG) .
-
-.PHONY: crd
-crd:
-	@echo "deploying crd"
-	kubectl create -f manifests/crd-apiextension-v1beta1.yaml
+	$(RUNTIME) build -f images/Dockerfile -t $(RTE_CONTAINER_IMAGE) .
 
 .PHONY: push
 push: image
 	@echo "pushing image"
-	$(RUNTIME) push quay.io/$(REPOOWNER)/$(IMAGENAME):$(IMAGETAG)
+	$(RUNTIME) push $(RTE_CONTAINER_IMAGE)
+
+.PHONY: test-unit
+test-unit:
+	go test ./pkg/...
+
+build-e2e: outdir
+	# need to use makefile rules in a better way
+	[ -x _out/rte-e2e.test ] || go test -v -c -o _out/rte-e2e.test ./test/e2e/
+
+.PHONY: test-e2e
+test-e2e: build-e2e
+	_out/rte-e2e.test
+
+.PHONY: test-e2e-full
+	go test -v ./test/e2e/
 
 .PHONY: deploy
-deploy: push
-	@echo "deploying Resource Topology Exporter"
-	kubectl create -f manifests/resource-topology-exporter-ds.yaml
+deploy:
+	$(KUBECLI) create -f $(TOPOLOGYAPI_MANIFESTS)/crd.yaml
+	hack/get-manifest-ds.sh | $(KUBECLI) create -f -
 
-.PHONY: deploy-pod
-deploy-pod:
-	@echo "deploying Pods"
-	kubectl create -f manifests/sample-devices/test-pod-deviceA.yaml
-	kubectl create -f manifests/sample-devices/test-pod-deviceA-2.yaml
-	kubectl create -f manifests/sample-devices/test-pod-deviceA-3.yaml
+.PHONY: undeploy
+undeploy:
+	$(KUBECLI) delete -f $(TOPOLOGYAPI_MANIFESTS)/crd.yaml
+	hack/get-manifest-ds.sh | $(KUBECLI) delete -f -
 
-.PHONY: deploy-taerror
-deploy-taerror:
-	@echo "deploying Pod"
-	kubectl create -f manifests/test-deployment-taerror.yaml
-
-clean-binaries:
-	rm -f bin/resource-topology-exporter
-
-clean: clean-binaries
-	kubectl delete -f manifests/resource-topology-exporter-ds.yaml
-	kubectl delete -f manifests/sample-devices/test-pod-deviceA.yaml
-	kubectl delete -f manifests/sample-devices/test-pod-deviceA-2.yaml
-	kubectl delete -f manifests/sample-devices/test-pod-deviceA-3.yaml
+.PHONY: gen-manifests
+gen-manifests:
+	@curl -L $(TOPOLOGYAPI_MANIFESTS)/crd.yaml
+	@hack/get-manifest-ds.sh
