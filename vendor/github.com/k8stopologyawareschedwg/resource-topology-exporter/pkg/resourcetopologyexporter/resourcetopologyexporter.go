@@ -10,7 +10,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
+	podresourcesapi "k8s.io/kubelet/pkg/apis/podresources/v1"
 
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/kubeconf"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/nrtupdater"
@@ -25,8 +25,9 @@ const (
 )
 
 type Args struct {
-	Debug              bool
-	ReferenceContainer *podrescli.ContainerIdent
+	Debug                 bool
+	ReferenceContainer    *podrescli.ContainerIdent
+	TopologyManagerPolicy string
 }
 
 func ContainerIdentFromEnv() *podrescli.ContainerIdent {
@@ -58,27 +59,29 @@ func ContainerIdentFromString(ident string) (*podrescli.ContainerIdent, error) {
 	return cntIdent, nil
 }
 
-func Execute(nrtupdaterArgs nrtupdater.Args, resourcemonitorArgs resourcemonitor.Args, rteArgs Args) error {
-	klConfig, err := kubeconf.GetKubeletConfigFromLocalFile(resourcemonitorArgs.KubeletConfigFile)
-	if err != nil {
-		return fmt.Errorf("error getting topology Manager Policy: %w", err)
-	}
-	tmPolicy := klConfig.TopologyManagerPolicy
-	log.Printf("detected kubelet Topology Manager policy %q", tmPolicy)
+type PollTrigger struct {
+	Timer bool
+}
 
-	resMon, err := NewResourceMonitor(resourcemonitorArgs, rteArgs)
+func Execute(cli podresourcesapi.PodResourcesListerClient, nrtupdaterArgs nrtupdater.Args, resourcemonitorArgs resourcemonitor.Args, rteArgs Args) error {
+	tmPolicy, err := getTopologyManagerPolicy(resourcemonitorArgs, rteArgs)
 	if err != nil {
 		return err
 	}
 
-	eventsChan := make(chan struct{})
-	zonesChannel, _ := resMon.Run(eventsChan)
+	resMon, err := NewResourceMonitor(cli, resourcemonitorArgs, rteArgs)
+	if err != nil {
+		return err
+	}
+
+	eventsChan := make(chan PollTrigger)
+	infoChannel, _ := resMon.Run(eventsChan)
 
 	upd, err := nrtupdater.NewNRTUpdater(nrtupdaterArgs, tmPolicy)
 	if err != nil {
 		return fmt.Errorf("failed to initialize NRT updater: %w", err)
 	}
-	upd.Run(zonesChannel)
+	upd.Run(infoChannel)
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -104,13 +107,13 @@ func Execute(nrtupdaterArgs nrtupdater.Args, resourcemonitorArgs resourcemonitor
 		// TODO: what about closed channels?
 		select {
 		case <-ticker.C:
-			eventsChan <- struct{}{}
+			eventsChan <- PollTrigger{Timer: true}
 			log.Printf("timer update trigger")
 
 		case event := <-watcher.Events:
 			log.Printf("fsnotify event from %q: %v", event.Name, event.Op)
 			if IsTriggeringFSNotifyEvent(event) {
-				eventsChan <- struct{}{}
+				eventsChan <- PollTrigger{}
 				log.Printf("fsnotify update trigger")
 			}
 
@@ -121,6 +124,22 @@ func Execute(nrtupdaterArgs nrtupdater.Args, resourcemonitorArgs resourcemonitor
 	}
 
 	return nil // unreachable
+}
+
+func getTopologyManagerPolicy(resourcemonitorArgs resourcemonitor.Args, rteArgs Args) (string, error) {
+	if rteArgs.TopologyManagerPolicy != "" {
+		log.Printf("using given Topology Manager policy %q", rteArgs.TopologyManagerPolicy)
+		return rteArgs.TopologyManagerPolicy, nil
+	}
+	if resourcemonitorArgs.KubeletConfigFile != "" {
+		klConfig, err := kubeconf.GetKubeletConfigFromLocalFile(resourcemonitorArgs.KubeletConfigFile)
+		if err != nil {
+			return "", fmt.Errorf("error getting topology Manager Policy: %w", err)
+		}
+		log.Printf("detected kubelet Topology Manager policy %q", klConfig.TopologyManagerPolicy)
+		return klConfig.TopologyManagerPolicy, nil
+	}
+	return "", fmt.Errorf("cannot find the kubelet Topology Manager policy")
 }
 
 func IsTriggeringFSNotifyEvent(event fsnotify.Event) bool {
@@ -139,42 +158,39 @@ func IsTriggeringFSNotifyEvent(event fsnotify.Event) bool {
 }
 
 type ResourceMonitor struct {
-	resScan resourcemonitor.ResourcesScanner
-	resAggr resourcemonitor.ResourcesAggregator
+	resScan     resourcemonitor.ResourcesScanner
+	resAggr     resourcemonitor.ResourcesAggregator
+	excludeList resourcemonitor.ResourceExcludeList
 }
 
-func NewResourceMonitor(args resourcemonitor.Args, rteArgs Args) (*ResourceMonitor, error) {
-	podResClient, err := podrescli.NewClient(args.PodResourceSocketPath, rteArgs.Debug, rteArgs.ReferenceContainer)
+func NewResourceMonitor(cli podresourcesapi.PodResourcesListerClient, args resourcemonitor.Args, rteArgs Args) (*ResourceMonitor, error) {
+	resScan, err := resourcemonitor.NewPodResourcesScanner(args.Namespace, cli)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get podresources client: %w", err)
-	}
-
-	resScan, err := resourcemonitor.NewPodResourcesScanner(args.Namespace, podResClient)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize ResourceMonitor upd: %w", err)
+		return nil, fmt.Errorf("failed to initialize ResourceMonitor scanner: %w", err)
 	}
 	// CAUTION: these resources are expected to change rarely - if ever.
 	//So we are intentionally do this once during the process lifecycle.
 	//TODO: Obtain node resources dynamically from the podresource API
 
-	resAggr, err := resourcemonitor.NewResourcesAggregator(args.SysfsRoot, podResClient)
+	resAggr, err := resourcemonitor.NewResourcesAggregator(args.SysfsRoot, cli)
 	if err != nil {
 		return nil, fmt.Errorf("failed to obtain node resource information: %w", err)
 	}
 
 	return &ResourceMonitor{
-		resScan: resScan,
-		resAggr: resAggr,
+		resScan:     resScan,
+		resAggr:     resAggr,
+		excludeList: args.ExcludeList,
 	}, nil
 }
 
-func (rm *ResourceMonitor) Run(eventsChan <-chan struct{}) (<-chan v1alpha1.ZoneList, chan<- struct{}) {
-	zonesChannel := make(chan v1alpha1.ZoneList)
+func (rm *ResourceMonitor) Run(eventsChan <-chan PollTrigger) (<-chan nrtupdater.MonitorInfo, chan<- struct{}) {
+	infoChannel := make(chan nrtupdater.MonitorInfo)
 	done := make(chan struct{})
 	go func() {
 		for {
 			select {
-			case <-eventsChan:
+			case pt := <-eventsChan:
 				tsBegin := time.Now()
 				podResources, err := rm.resScan.Scan()
 				if err != nil {
@@ -182,8 +198,11 @@ func (rm *ResourceMonitor) Run(eventsChan <-chan struct{}) (<-chan v1alpha1.Zone
 					continue
 				}
 
-				zones := rm.resAggr.Aggregate(podResources)
-				zonesChannel <- zones
+				zones := rm.resAggr.Aggregate(podResources, rm.excludeList)
+				infoChannel <- nrtupdater.MonitorInfo{
+					Timer: pt.Timer,
+					Zones: zones,
+				}
 				tsEnd := time.Now()
 
 				log.Printf("read request received at %v completed in %v", tsBegin, tsEnd.Sub(tsBegin))
@@ -193,5 +212,5 @@ func (rm *ResourceMonitor) Run(eventsChan <-chan struct{}) (<-chan v1alpha1.Zone
 			}
 		}
 	}()
-	return zonesChannel, done
+	return infoChannel, done
 }

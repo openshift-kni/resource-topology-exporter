@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815
-	github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210621110700-8f08b26b210b
+	github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210729184402-806588edb85b
 )
 
 // The k8s "sub-"packages do not have 'semver' compatible versions. Thus, we
@@ -40,4 +40,4 @@ replace (
 )
 
 // pinned u/s dep
-replace github.com/k8stopologyawareschedwg/resource-topology-exporter => github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210708081206-af9beab470c5
+replace github.com/k8stopologyawareschedwg/resource-topology-exporter => github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210729184402-806588edb85b

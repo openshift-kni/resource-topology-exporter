@@ -80,7 +80,7 @@ github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1
 github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned
 github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned/scheme
 github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned/typed/topology/v1alpha1
-# github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210621110700-8f08b26b210b => github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210708081206-af9beab470c5
+# github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210729184402-806588edb85b => github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210729184402-806588edb85b
 ## explicit
 github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/dumpobject
 github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/kubeconf
@@ -472,4 +472,4 @@ sigs.k8s.io/yaml
 # k8s.io/metrics => k8s.io/metrics v0.21.0
 # k8s.io/mount-utils => k8s.io/mount-utils v0.21.0
 # k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.21.0
-# github.com/k8stopologyawareschedwg/resource-topology-exporter => github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210708081206-af9beab470c5
+# github.com/k8stopologyawareschedwg/resource-topology-exporter => github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210729184402-806588edb85b
