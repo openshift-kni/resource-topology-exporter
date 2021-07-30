@@ -1,3 +1,17 @@
+/*
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package main
 
 import (
@@ -16,6 +30,9 @@ import (
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/podrescli"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/resourcemonitor"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/resourcetopologyexporter"
+
+	"github.com/openshift-kni/resource-topology-exporter/pkg/podrescompat"
+	"github.com/openshift-kni/resource-topology-exporter/pkg/sysinfo"
 )
 
 const (
@@ -23,15 +40,42 @@ const (
 	ProgramName = "resource-topology-exporter"
 )
 
+type localArgs struct {
+	SysInfoConfigFile string
+}
+
 func main() {
-	nrtupdaterArgs, resourcemonitorArgs, rteArgs, err := argsParse(os.Args[1:])
+	nrtupdaterArgs, resourcemonitorArgs, rteArgs, args, err := argsParse(os.Args[1:])
 	if err != nil {
 		log.Fatalf("failed to parse command line: %v", err)
 	}
 
-	cli, err := podrescli.NewFilteringClient(resourcemonitorArgs.PodResourceSocketPath, rteArgs.Debug, rteArgs.ReferenceContainer)
+	// only for debug purposes
+	// printing the header so early includes any debug message from the sysinfo package
+	log.Printf("=== System information ===\n")
+	sysInfo, err := sysinfo.NewSysinfo(args.SysInfoConfigFile)
 	if err != nil {
-		log.Fatalf("failed to get podresources client: %v", err)
+		log.Fatalf("failed to query system info: %v", err)
+	}
+	log.Printf("%s", sysInfo)
+	log.Printf("==========================\n")
+
+	k8sCli, err := podrescli.NewK8SClient(resourcemonitorArgs.PodResourceSocketPath)
+	if err != nil {
+		log.Fatalf("failed to get podresources k8s client: %v", err)
+	}
+
+	sysCli := k8sCli
+	if args.SysInfoConfigFile != "" {
+		sysCli, err = podrescompat.NewSysinfoClientFromLister(k8sCli, args.SysInfoConfigFile)
+		if err != nil {
+			log.Fatalf("failed to get podresources sysinfo client: %v", err)
+		}
+	}
+
+	cli, err := podrescli.NewFilteringClientFromLister(sysCli, rteArgs.Debug, rteArgs.ReferenceContainer)
+	if err != nil {
+		log.Fatalf("failed to get podresources filtering client: %v", err)
 	}
 
 	err = resourcetopologyexporter.Execute(cli, nrtupdaterArgs, resourcemonitorArgs, rteArgs)
@@ -55,6 +99,7 @@ const helpTemplate string = `{{.ProgramName}}
 			[--topology-manager-policy=<pol>]
 			[--reference-container=<spec>]
 			[--exclude-list-config=<path>]
+			[--resource-config=<path>]
 
   {{.ProgramName}} -h | --help
   {{.ProgramName}} --version
@@ -84,7 +129,9 @@ const helpTemplate string = `{{.ProgramName}}
                                   Alternatively, you can use the env vars
 				                  REFERENCE_NAMESPACE, REFERENCE_POD_NAME, REFERENCE_CONTAINER_NAME.
   --exclude-list-config=<path>    Exclude resources list file path.
-                                  [Default:/etc/resource-topology-exporter-config/exclude-list-config.yaml]`
+                                  [Default: /etc/resource-topology-exporter-config/exclude-list-config.yaml]
+  --resource-config=<path>        Resource Mapping configuration file path.
+                                  [Default: /etc/resource-topology-exporter-config/resources.json]`
 
 func getUsage() (string, error) {
 	var helpBuffer bytes.Buffer
@@ -108,14 +155,15 @@ func getUsage() (string, error) {
 
 // nrtupdaterArgsParse parses the command line arguments passed to the program.
 // The argument argv is passed only for testing purposes.
-func argsParse(argv []string) (nrtupdater.Args, resourcemonitor.Args, resourcetopologyexporter.Args, error) {
+func argsParse(argv []string) (nrtupdater.Args, resourcemonitor.Args, resourcetopologyexporter.Args, localArgs, error) {
 	var nrtupdaterArgs nrtupdater.Args
 	var resourcemonitorArgs resourcemonitor.Args
 	var rteArgs resourcetopologyexporter.Args
+	var args localArgs
 
 	usage, err := getUsage()
 	if err != nil {
-		return nrtupdaterArgs, resourcemonitorArgs, rteArgs, err
+		return nrtupdaterArgs, resourcemonitorArgs, rteArgs, args, err
 	}
 
 	arguments, _ := docopt.ParseArgs(usage, argv, fmt.Sprintf("%s %s", ProgramName, "TBD"))
@@ -135,14 +183,14 @@ func argsParse(argv []string) (nrtupdater.Args, resourcemonitor.Args, resourceto
 		if nrtupdaterArgs.Hostname == "" {
 			nrtupdaterArgs.Hostname, err = os.Hostname()
 			if err != nil {
-				return nrtupdaterArgs, resourcemonitorArgs, rteArgs, fmt.Errorf("error getting the host name: %w", err)
+				return nrtupdaterArgs, resourcemonitorArgs, rteArgs, args, fmt.Errorf("error getting the host name: %w", err)
 			}
 		}
 	}
 
 	resourcemonitorArgs.SleepInterval, err = time.ParseDuration(arguments["--sleep-interval"].(string))
 	if err != nil {
-		return nrtupdaterArgs, resourcemonitorArgs, rteArgs, fmt.Errorf("invalid --sleep-interval specified: %w", err)
+		return nrtupdaterArgs, resourcemonitorArgs, rteArgs, args, fmt.Errorf("invalid --sleep-interval specified: %w", err)
 	}
 	if ns, ok := arguments["--watch-namespace"].(string); ok {
 		resourcemonitorArgs.Namespace = ns
@@ -163,7 +211,7 @@ func argsParse(argv []string) (nrtupdater.Args, resourcemonitor.Args, resourceto
 	if refCnt, ok := arguments["--reference-container"].(string); ok {
 		rteArgs.ReferenceContainer, err = resourcetopologyexporter.ContainerIdentFromString(refCnt)
 		if err != nil {
-			return nrtupdaterArgs, resourcemonitorArgs, rteArgs, err
+			return nrtupdaterArgs, resourcemonitorArgs, rteArgs, args, err
 		}
 	}
 	if rteArgs.ReferenceContainer == nil {
@@ -184,7 +232,12 @@ func argsParse(argv []string) (nrtupdater.Args, resourcemonitor.Args, resourceto
 		// empty string is a valid value here, so just keep going
 		rteArgs.TopologyManagerPolicy = tmPolicy
 	}
-	return nrtupdaterArgs, resourcemonitorArgs, rteArgs, nil
+
+	if sysinfoConfigPath, ok := arguments["--resource-config"].(string); ok {
+		args.SysInfoConfigFile = sysinfoConfigPath
+	}
+
+	return nrtupdaterArgs, resourcemonitorArgs, rteArgs, args, nil
 }
 
 func getExcludeListFromConfigMap(configMapPath string) (resourcemonitor.ResourceExcludeList, error) {
