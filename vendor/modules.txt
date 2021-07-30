@@ -49,6 +49,7 @@ github.com/googleapis/gnostic/openapiv2
 # github.com/imdario/mergo v0.3.5
 github.com/imdario/mergo
 # github.com/jaypipes/ghw v0.8.1-0.20210609141030-acb1a36eaf89
+## explicit
 github.com/jaypipes/ghw
 github.com/jaypipes/ghw/pkg/baseboard
 github.com/jaypipes/ghw/pkg/bios
@@ -71,6 +72,7 @@ github.com/jaypipes/ghw/pkg/topology
 github.com/jaypipes/ghw/pkg/unitutil
 github.com/jaypipes/ghw/pkg/util
 # github.com/jaypipes/pcidb v0.6.0
+## explicit
 github.com/jaypipes/pcidb
 # github.com/json-iterator/go v1.1.10
 github.com/json-iterator/go
@@ -151,6 +153,7 @@ google.golang.org/appengine/urlfetch
 # google.golang.org/genproto v0.0.0-20201110150050-8816d57aaa9a
 google.golang.org/genproto/googleapis/rpc/status
 # google.golang.org/grpc v1.35.0 => google.golang.org/grpc v1.27.1
+## explicit
 google.golang.org/grpc
 google.golang.org/grpc/attributes
 google.golang.org/grpc/backoff
@@ -426,10 +429,12 @@ k8s.io/component-base/version
 # k8s.io/klog/v2 v2.8.0
 k8s.io/klog/v2
 # k8s.io/kubelet v0.21.0 => k8s.io/kubelet v0.21.0
+## explicit
 k8s.io/kubelet/config/v1beta1
 k8s.io/kubelet/pkg/apis/podresources/v1
 k8s.io/kubelet/pkg/apis/podresources/v1alpha1
 # k8s.io/kubernetes v1.21.0
+## explicit
 k8s.io/kubernetes/pkg/features
 k8s.io/kubernetes/pkg/kubelet/apis/podresources
 k8s.io/kubernetes/pkg/kubelet/cm/cpuset
@@ -444,6 +449,7 @@ sigs.k8s.io/structured-merge-diff/v4/schema
 sigs.k8s.io/structured-merge-diff/v4/typed
 sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
+## explicit
 sigs.k8s.io/yaml
 # github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
 # golang.org/x/text => golang.org/x/text v0.3.5
