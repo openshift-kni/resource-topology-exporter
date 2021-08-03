@@ -56,7 +56,7 @@ push: image
 
 .PHONY: test-unit
 test-unit:
-	go test ./pkg/...
+	[ -d ./pkg ] && go test ./pkg/... || :
 
 build-e2e: outdir
 	# need to use makefile rules in a better way
