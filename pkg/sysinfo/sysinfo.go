@@ -49,7 +49,7 @@ type SysInfo struct {
 
 func (si SysInfo) String() string {
 	b := strings.Builder{}
-	fmt.Fprintf(&b, "cpus: %s\n", si.CPUs.String())
+	fmt.Fprintf(&b, "cpus: allocatable %q\n", si.CPUs.String())
 	for resourceName, numaDevs := range si.Resources {
 		fmt.Fprintf(&b, "resource %q:\n", resourceName)
 		for numaNode, devs := range numaDevs {
@@ -65,7 +65,6 @@ func NewSysinfo(configFile string) (SysInfo, error) {
 	if err != nil {
 		return sysinfo, err
 	}
-	log.Printf("conf: received: %+#v", conf)
 
 	sysinfo.CPUs, err = GetCPUResources(conf.ReservedCPUs, GetOnlineCPUs)
 	if sysinfo.CPUs.Size() == 0 {
@@ -84,13 +83,13 @@ func GetCPUResources(resCPUs string, getCPUs func() (cpuset.CPUSet, error)) (cpu
 	if err != nil {
 		return cpuset.CPUSet{}, err
 	}
-	log.Printf("cpus: reserved %s", reservedCPUs.String())
+	log.Printf("cpus: reserved %q", reservedCPUs.String())
 
 	cpus, err := getCPUs()
 	if err != nil {
 		return cpuset.CPUSet{}, err
 	}
-	log.Printf("cpus: online %s", cpus.String())
+	log.Printf("cpus: online %q", cpus.String())
 
 	return cpus.Difference(reservedCPUs), nil
 }
@@ -166,6 +165,5 @@ func readConfig(configFile string) (Config, error) {
 	}
 	defer src.Close()
 	err = json.NewDecoder(src).Decode(&conf)
-	log.Printf("conf: decoded: %+#v", conf)
 	return conf, err
 }
