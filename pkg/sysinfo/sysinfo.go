@@ -15,12 +15,9 @@ limitations under the License.
 package sysinfo
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"os"
 	"strings"
 
 	"github.com/jaypipes/ghw/pkg/pci"
@@ -33,9 +30,13 @@ const (
 )
 
 type Config struct {
-	ReservedCPUs string `json:"reserved_cpus"`
+	ReservedCPUs string
 	// vendor:device -> resourcename
-	ResourceMapping map[string]string `json:"resource_mapping"`
+	ResourceMapping map[string]string
+}
+
+func (cfg Config) IsEmpty() bool {
+	return cfg.ReservedCPUs == "" && len(cfg.ResourceMapping) == 0
 }
 
 // NUMA Cell -> deviceIDs
@@ -59,12 +60,9 @@ func (si SysInfo) String() string {
 	return b.String()
 }
 
-func NewSysinfo(configFile string) (SysInfo, error) {
-	sysinfo := SysInfo{}
-	conf, err := readConfig(configFile)
-	if err != nil {
-		return sysinfo, err
-	}
+func NewSysinfo(conf Config) (SysInfo, error) {
+	var err error
+	var sysinfo SysInfo
 
 	sysinfo.CPUs, err = GetCPUResources(conf.ReservedCPUs, GetOnlineCPUs)
 	if sysinfo.CPUs.Size() == 0 {
@@ -151,19 +149,4 @@ func GetPCIDevices() ([]*pci.Device, error) {
 		return nil, err
 	}
 	return info.Devices, nil
-}
-
-func readConfig(configFile string) (Config, error) {
-	var conf Config
-	src, err := os.Open(configFile)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			log.Printf("conf: none found")
-			return conf, nil
-		}
-		return conf, err
-	}
-	defer src.Close()
-	err = json.NewDecoder(src).Decode(&conf)
-	return conf, err
 }
