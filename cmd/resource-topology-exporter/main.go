@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"text/template"
@@ -219,27 +220,33 @@ func argsParse(argv []string) (nrtupdater.Args, resourcemonitor.Args, resourceto
 		}
 		resourcemonitorArgs.ExcludeList.ExcludeList = conf.ExcludeList
 		localArgs.SysConf = conf.Resources
-	}
-	if tmPolicy, ok := arguments["--topology-manager-policy"].(string); ok {
-		if tmPolicy == "" {
-			// last attempt
-			tmPolicy = os.Getenv("TOPOLOGY_MANAGER_POLICY")
+		// do not overwrite with empty an existing value (e.g. from opts)
+		if rteArgs.TopologyManagerPolicy == "" {
+			rteArgs.TopologyManagerPolicy = conf.TopologyManagerPolicy
 		}
-		// empty string is a valid value here, so just keep going
-		rteArgs.TopologyManagerPolicy = tmPolicy
+	}
+
+	if tmPolicy, ok := arguments["--topology-manager-policy"].(string); ok {
+		// empty string is a valid value here, so just keep going;
+		// but not overwrite with empty an existing value (e.g. from conf)
+		if rteArgs.TopologyManagerPolicy == "" {
+			rteArgs.TopologyManagerPolicy = tmPolicy
+		}
 	}
 
 	return nrtupdaterArgs, resourcemonitorArgs, rteArgs, localArgs, nil
 }
 
 type config struct {
-	ExcludeList map[string][]string
-	Resources   sysinfo.Config
+	ExcludeList           map[string][]string
+	Resources             sysinfo.Config
+	TopologyManagerPolicy string
 }
 
 func readConfig(configPath string) (config, error) {
 	conf := config{}
-	data, err := os.ReadFile(configPath)
+	// TODO modernize using os.ReadFile
+	data, err := ioutil.ReadFile(configPath)
 	if err != nil {
 		// config is optional
 		if errors.Is(err, os.ErrNotExist) {
