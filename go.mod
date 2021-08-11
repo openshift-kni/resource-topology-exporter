@@ -6,7 +6,7 @@ require (
 	github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815
 	github.com/jaypipes/ghw v0.8.1-0.20210609141030-acb1a36eaf89
 	github.com/jaypipes/pcidb v0.6.0
-	github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210729184402-806588edb85b
+	github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210811084444-b0838c8214c1
 	google.golang.org/grpc v1.35.0
 	k8s.io/kubelet v0.21.0
 	k8s.io/kubernetes v1.21.0
@@ -46,4 +46,4 @@ replace (
 )
 
 // pinned u/s dep
-replace github.com/k8stopologyawareschedwg/resource-topology-exporter => github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210729184402-806588edb85b
+replace github.com/k8stopologyawareschedwg/resource-topology-exporter => github.com/k8stopologyawareschedwg/resource-topology-exporter v0.0.0-20210811084444-b0838c8214c1
