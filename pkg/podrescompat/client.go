@@ -26,14 +26,14 @@ import (
 )
 
 type sysinfoClient struct {
-	sysInfoConfig string
-	cli           podresourcesapi.PodResourcesListerClient
+	sysConf sysinfo.Config
+	cli     podresourcesapi.PodResourcesListerClient
 }
 
-func NewSysinfoClientFromLister(cli podresourcesapi.PodResourcesListerClient, sysInfoConfig string) podresourcesapi.PodResourcesListerClient {
+func NewSysinfoClientFromLister(cli podresourcesapi.PodResourcesListerClient, sysConf sysinfo.Config) podresourcesapi.PodResourcesListerClient {
 	return &sysinfoClient{
-		cli:           cli,
-		sysInfoConfig: sysInfoConfig,
+		cli:     cli,
+		sysConf: sysConf,
 	}
 }
 
@@ -56,7 +56,7 @@ func (sc *sysinfoClient) GetAllocatableResources(ctx context.Context, in *podres
 }
 
 func (sc *sysinfoClient) makeAllocatableResourcesResponse() (*podresourcesapi.AllocatableResourcesResponse, error) {
-	sysInfo, err := sysinfo.NewSysinfo(sc.sysInfoConfig)
+	sysInfo, err := sysinfo.NewSysinfo(sc.sysConf)
 	if err != nil {
 		return nil, err
 	}

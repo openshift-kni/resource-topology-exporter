@@ -17,20 +17,19 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"text/template"
 	"time"
 
 	"github.com/docopt/docopt-go"
-	"sigs.k8s.io/yaml"
 
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/nrtupdater"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/podrescli"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/resourcemonitor"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/resourcetopologyexporter"
 
+	"github.com/openshift-kni/resource-topology-exporter/pkg/config"
 	"github.com/openshift-kni/resource-topology-exporter/pkg/podrescompat"
 	"github.com/openshift-kni/resource-topology-exporter/pkg/sysinfo"
 )
@@ -41,7 +40,7 @@ const (
 )
 
 type localArgs struct {
-	SysInfoConfigFile string
+	SysConf sysinfo.Config
 }
 
 func main() {
@@ -53,7 +52,7 @@ func main() {
 	// only for debug purposes
 	// printing the header so early includes any debug message from the sysinfo package
 	log.Printf("=== System information ===\n")
-	sysInfo, err := sysinfo.NewSysinfo(localArgs.SysInfoConfigFile)
+	sysInfo, err := sysinfo.NewSysinfo(localArgs.SysConf)
 	if err != nil {
 		log.Fatalf("failed to query system info: %v", err)
 	}
@@ -66,8 +65,8 @@ func main() {
 	}
 
 	sysCli := k8sCli
-	if localArgs.SysInfoConfigFile != "" {
-		sysCli = podrescompat.NewSysinfoClientFromLister(k8sCli, localArgs.SysInfoConfigFile)
+	if !localArgs.SysConf.IsEmpty() {
+		sysCli = podrescompat.NewSysinfoClientFromLister(k8sCli, localArgs.SysConf)
 	}
 
 	cli, err := podrescli.NewFilteringClientFromLister(sysCli, rteArgs.Debug, rteArgs.ReferenceContainer)
@@ -95,8 +94,7 @@ const helpTemplate string = `{{.ProgramName}}
 			[--kubelet-config-file=<path>]
 			[--topology-manager-policy=<pol>]
 			[--reference-container=<spec>]
-			[--exclude-list-config=<path>]
-			[--resource-config=<path>]
+			[--config=<path>]
 
   {{.ProgramName}} -h | --help
   {{.ProgramName}} --version
@@ -124,11 +122,9 @@ const helpTemplate string = `{{.ProgramName}}
                                   See: https://github.com/kubernetes/kubernetes/issues/102190
                                   format of spec is namespace/podname/containername.
                                   Alternatively, you can use the env vars
-				                  REFERENCE_NAMESPACE, REFERENCE_POD_NAME, REFERENCE_CONTAINER_NAME.
-  --exclude-list-config=<path>    Exclude resources list file path.
-                                  [Default: /etc/resource-topology-exporter-config/exclude-list-config.yaml]
-  --resource-config=<path>        Resource Mapping configuration file path.
-                                  [Default: /etc/resource-topology-exporter-config/resources.json]`
+                                  REFERENCE_NAMESPACE, REFERENCE_POD_NAME, REFERENCE_CONTAINER_NAME.
+  --config=<path>                 Configuration file path. Use this to set the exclude list.
+                                  [Default: /etc/resource-topology-exporter/config.yaml]`
 
 func getUsage() (string, error) {
 	var helpBuffer bytes.Buffer
@@ -215,44 +211,22 @@ func argsParse(argv []string) (nrtupdater.Args, resourcemonitor.Args, resourceto
 		rteArgs.ReferenceContainer = resourcetopologyexporter.ContainerIdentFromEnv()
 	}
 
-	if excludeListConfigMapPath, ok := arguments["--exclude-list-config"].(string); ok {
-		resourcemonitorArgs.ExcludeList, err = getExcludeListFromConfigMap(excludeListConfigMapPath)
+	if configPath, ok := arguments["--config"].(string); ok {
+		conf, err := config.ReadConfig(configPath)
 		if err != nil {
-			log.Fatalf("error getting exclude list from the configutarion: %v", err)
+			log.Fatalf("error reading the configuration file: %v", err)
+		}
+		resourcemonitorArgs.ExcludeList.ExcludeList = conf.ExcludeList
+		localArgs.SysConf = conf.Resources
+		// do not overwrite with empty an existing value (e.g. from opts)
+		if rteArgs.TopologyManagerPolicy == "" {
+			rteArgs.TopologyManagerPolicy = conf.TopologyManagerPolicy
 		}
 	}
+
 	if tmPolicy, ok := arguments["--topology-manager-policy"].(string); ok {
-		if tmPolicy == "" {
-			// last attempt
-			tmPolicy = os.Getenv("TOPOLOGY_MANAGER_POLICY")
-		}
-		// empty string is a valid value here, so just keep going
 		rteArgs.TopologyManagerPolicy = tmPolicy
 	}
 
-	if sysinfoConfigPath, ok := arguments["--resource-config"].(string); ok {
-		localArgs.SysInfoConfigFile = sysinfoConfigPath
-	}
-
 	return nrtupdaterArgs, resourcemonitorArgs, rteArgs, localArgs, nil
-}
-
-func getExcludeListFromConfigMap(configMapPath string) (resourcemonitor.ResourceExcludeList, error) {
-	excludeList := resourcemonitor.ResourceExcludeList{}
-
-	config, err := ioutil.ReadFile(configMapPath)
-	if err != nil {
-		// ConfigMap is optional
-		if os.IsNotExist(err) {
-			log.Printf("Info: couldn't find configuration under %v", configMapPath)
-			return excludeList, nil
-		}
-		return excludeList, err
-	}
-
-	err = yaml.Unmarshal(config, &excludeList)
-	if err != nil {
-		return excludeList, err
-	}
-	return excludeList, nil
 }
