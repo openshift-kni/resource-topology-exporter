@@ -16,22 +16,20 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"text/template"
 	"time"
 
 	"github.com/docopt/docopt-go"
-	"sigs.k8s.io/yaml"
 
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/nrtupdater"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/podrescli"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/resourcemonitor"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/resourcetopologyexporter"
 
+	"github.com/openshift-kni/resource-topology-exporter/pkg/config"
 	"github.com/openshift-kni/resource-topology-exporter/pkg/podrescompat"
 	"github.com/openshift-kni/resource-topology-exporter/pkg/sysinfo"
 )
@@ -214,7 +212,7 @@ func argsParse(argv []string) (nrtupdater.Args, resourcemonitor.Args, resourceto
 	}
 
 	if configPath, ok := arguments["--config"].(string); ok {
-		conf, err := readConfig(configPath)
+		conf, err := config.ReadConfig(configPath)
 		if err != nil {
 			log.Fatalf("error reading the configuration file: %v", err)
 		}
@@ -227,34 +225,8 @@ func argsParse(argv []string) (nrtupdater.Args, resourcemonitor.Args, resourceto
 	}
 
 	if tmPolicy, ok := arguments["--topology-manager-policy"].(string); ok {
-		// empty string is a valid value here, so just keep going;
-		// but not overwrite with empty an existing value (e.g. from conf)
-		if rteArgs.TopologyManagerPolicy == "" {
-			rteArgs.TopologyManagerPolicy = tmPolicy
-		}
+		rteArgs.TopologyManagerPolicy = tmPolicy
 	}
 
 	return nrtupdaterArgs, resourcemonitorArgs, rteArgs, localArgs, nil
-}
-
-type config struct {
-	ExcludeList           map[string][]string
-	Resources             sysinfo.Config
-	TopologyManagerPolicy string
-}
-
-func readConfig(configPath string) (config, error) {
-	conf := config{}
-	// TODO modernize using os.ReadFile
-	data, err := ioutil.ReadFile(configPath)
-	if err != nil {
-		// config is optional
-		if errors.Is(err, os.ErrNotExist) {
-			log.Printf("Info: couldn't find configuration in %q", configPath)
-			return conf, nil
-		}
-		return conf, err
-	}
-	err = yaml.Unmarshal(data, &conf)
-	return conf, err
 }
