@@ -14,6 +14,7 @@ all: build
 
 .PHONY: build
 build: outdir
+	go version
 	$(COMMONENVVAR) $(BUILDENVVAR) go build -ldflags '-w' -o _out/resource-topology-exporter cmd/resource-topology-exporter/main.go
 
 .PHONY: gofmt
