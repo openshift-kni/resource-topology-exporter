@@ -2,19 +2,18 @@ package resourcetopologyexporter
 
 import (
 	"fmt"
-	"log"
-	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
 
+	"k8s.io/klog/v2"
 	podresourcesapi "k8s.io/kubelet/pkg/apis/podresources/v1"
 
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/kubeconf"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/nrtupdater"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/podrescli"
+	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/prometheus"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/resourcemonitor"
 )
 
@@ -25,42 +24,18 @@ const (
 )
 
 type Args struct {
-	Debug                 bool
-	ReferenceContainer    *podrescli.ContainerIdent
-	TopologyManagerPolicy string
-}
-
-func ContainerIdentFromEnv() *podrescli.ContainerIdent {
-	cntIdent := podrescli.ContainerIdent{
-		Namespace:     os.Getenv("REFERENCE_NAMESPACE"),
-		PodName:       os.Getenv("REFERENCE_POD_NAME"),
-		ContainerName: os.Getenv("REFERENCE_CONTAINER_NAME"),
-	}
-	if cntIdent.Namespace == "" || cntIdent.PodName == "" || cntIdent.ContainerName == "" {
-		return nil
-	}
-	return &cntIdent
-}
-
-func ContainerIdentFromString(ident string) (*podrescli.ContainerIdent, error) {
-	if ident == "" {
-		return nil, nil
-	}
-	items := strings.Split(ident, "/")
-	if len(items) != 3 {
-		return nil, fmt.Errorf("malformed ident: %q", ident)
-	}
-	cntIdent := &podrescli.ContainerIdent{
-		Namespace:     strings.TrimSpace(items[0]),
-		PodName:       strings.TrimSpace(items[1]),
-		ContainerName: strings.TrimSpace(items[2]),
-	}
-	log.Printf("reference container: %s", cntIdent)
-	return cntIdent, nil
+	Debug                  bool
+	ReferenceContainer     *podrescli.ContainerIdent
+	TopologyManagerPolicy  string
+	KubeletConfigFile      string
+	KubeletStateDirs       []string
+	PodResourcesSocketPath string
+	SleepInterval          time.Duration
 }
 
 type PollTrigger struct {
-	Timer bool
+	Timer     bool
+	Timestamp time.Time
 }
 
 func Execute(cli podresourcesapi.PodResourcesListerClient, nrtupdaterArgs nrtupdater.Args, resourcemonitorArgs resourcemonitor.Args, rteArgs Args) error {
@@ -89,40 +64,40 @@ func Execute(cli podresourcesapi.PodResourcesListerClient, nrtupdaterArgs nrtupd
 	}
 	defer watcher.Close()
 
-	for _, stateDir := range resourcemonitorArgs.KubeletStateDirs {
-		log.Printf("kubelet state dir: [%s]", stateDir)
+	for _, stateDir := range rteArgs.KubeletStateDirs {
+		klog.Infof("kubelet state dir: [%s]", stateDir)
 		if stateDir == "" {
 			continue
 		}
 		err := watcher.Add(stateDir)
 		if err != nil {
-			log.Printf("error adding watch on [%s]: %v", stateDir, err)
+			klog.Infof("error adding watch on [%s]: %v", stateDir, err)
 		} else {
-			log.Printf("added watch on [%s]", stateDir)
+			klog.Infof("added watch on [%s]", stateDir)
 		}
 	}
 
-	eventsChan <- PollTrigger{}
-	log.Printf("initial update trigger")
+	eventsChan <- PollTrigger{Timestamp: time.Now()}
+	klog.V(2).Infof("initial update trigger")
 
-	ticker := time.NewTicker(resourcemonitorArgs.SleepInterval)
+	ticker := time.NewTicker(rteArgs.SleepInterval)
 	for {
 		// TODO: what about closed channels?
 		select {
-		case <-ticker.C:
-			eventsChan <- PollTrigger{Timer: true}
-			log.Printf("timer update trigger")
+		case tickTs := <-ticker.C:
+			eventsChan <- PollTrigger{Timer: true, Timestamp: tickTs}
+			klog.V(4).Infof("timer update trigger")
 
 		case event := <-watcher.Events:
-			log.Printf("fsnotify event from %q: %v", event.Name, event.Op)
+			klog.V(5).Infof("fsnotify event from %q: %v", event.Name, event.Op)
 			if IsTriggeringFSNotifyEvent(event) {
-				eventsChan <- PollTrigger{}
-				log.Printf("fsnotify update trigger")
+				eventsChan <- PollTrigger{Timestamp: time.Now()}
+				klog.V(4).Infof("fsnotify update trigger")
 			}
 
 		case err := <-watcher.Errors:
 			// and yes, keep going
-			log.Printf("fsnotify error: %v", err)
+			klog.Warningf("fsnotify error: %v", err)
 		}
 	}
 
@@ -131,15 +106,15 @@ func Execute(cli podresourcesapi.PodResourcesListerClient, nrtupdaterArgs nrtupd
 
 func getTopologyManagerPolicy(resourcemonitorArgs resourcemonitor.Args, rteArgs Args) (string, error) {
 	if rteArgs.TopologyManagerPolicy != "" {
-		log.Printf("using given Topology Manager policy %q", rteArgs.TopologyManagerPolicy)
+		klog.Infof("using given Topology Manager policy %q", rteArgs.TopologyManagerPolicy)
 		return rteArgs.TopologyManagerPolicy, nil
 	}
-	if resourcemonitorArgs.KubeletConfigFile != "" {
-		klConfig, err := kubeconf.GetKubeletConfigFromLocalFile(resourcemonitorArgs.KubeletConfigFile)
+	if rteArgs.KubeletConfigFile != "" {
+		klConfig, err := kubeconf.GetKubeletConfigFromLocalFile(rteArgs.KubeletConfigFile)
 		if err != nil {
 			return "", fmt.Errorf("error getting topology Manager Policy: %w", err)
 		}
-		log.Printf("detected kubelet Topology Manager policy %q", klConfig.TopologyManagerPolicy)
+		klog.Infof("detected kubelet Topology Manager policy %q", klConfig.TopologyManagerPolicy)
 		return klConfig.TopologyManagerPolicy, nil
 	}
 	return "", fmt.Errorf("cannot find the kubelet Topology Manager policy")
@@ -161,28 +136,18 @@ func IsTriggeringFSNotifyEvent(event fsnotify.Event) bool {
 }
 
 type ResourceMonitor struct {
-	resScan     resourcemonitor.ResourcesScanner
-	resAggr     resourcemonitor.ResourcesAggregator
+	resMon      resourcemonitor.ResourceMonitor
 	excludeList resourcemonitor.ResourceExcludeList
 }
 
 func NewResourceMonitor(cli podresourcesapi.PodResourcesListerClient, args resourcemonitor.Args, rteArgs Args) (*ResourceMonitor, error) {
-	resScan, err := resourcemonitor.NewPodResourcesScanner(args.Namespace, cli)
+	resMon, err := resourcemonitor.NewResourceMonitor(cli, args)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize ResourceMonitor scanner: %w", err)
-	}
-	// CAUTION: these resources are expected to change rarely - if ever.
-	//So we are intentionally do this once during the process lifecycle.
-	//TODO: Obtain node resources dynamically from the podresource API
-
-	resAggr, err := resourcemonitor.NewResourcesAggregator(args.SysfsRoot, cli)
-	if err != nil {
-		return nil, fmt.Errorf("failed to obtain node resource information: %w", err)
+		return nil, fmt.Errorf("failed to initialize ResourceMonitor: %w", err)
 	}
 
 	return &ResourceMonitor{
-		resScan:     resScan,
-		resAggr:     resAggr,
+		resMon:      resMon,
 		excludeList: args.ExcludeList,
 	}, nil
 }
@@ -191,26 +156,31 @@ func (rm *ResourceMonitor) Run(eventsChan <-chan PollTrigger) (<-chan nrtupdater
 	infoChannel := make(chan nrtupdater.MonitorInfo)
 	done := make(chan struct{})
 	go func() {
+		lastWakeup := time.Now()
 		for {
 			select {
 			case pt := <-eventsChan:
-				tsBegin := time.Now()
-				podResources, err := rm.resScan.Scan()
-				if err != nil {
-					log.Printf("failed to scan pod resources: %v\n", err)
-					continue
-				}
+				var err error
+				monInfo := nrtupdater.MonitorInfo{Timer: pt.Timer}
 
-				zones := rm.resAggr.Aggregate(podResources, rm.excludeList)
-				infoChannel <- nrtupdater.MonitorInfo{
-					Timer: pt.Timer,
-					Zones: zones,
-				}
+				tsWakeupDiff := pt.Timestamp.Sub(lastWakeup)
+				lastWakeup = pt.Timestamp
+				prometheus.UpdateWakeupDelayMetric(monInfo.UpdateReason(), float64(tsWakeupDiff.Milliseconds()))
+
+				tsBegin := time.Now()
+				monInfo.Zones, err = rm.resMon.Scan(rm.excludeList)
 				tsEnd := time.Now()
 
-				log.Printf("read request received at %v completed in %v", tsBegin, tsEnd.Sub(tsBegin))
+				if err != nil {
+					klog.Warningf("failed to scan pod resources: %w\n", err)
+					continue
+				}
+				infoChannel <- monInfo
+
+				tsDiff := tsEnd.Sub(tsBegin)
+				prometheus.UpdateOperationDelayMetric("podresources_scan", monInfo.UpdateReason(), float64(tsDiff.Milliseconds()))
 			case <-done:
-				log.Printf("read stop at %v", time.Now())
+				klog.Infof("read stop at %v", time.Now())
 				break
 			}
 		}
