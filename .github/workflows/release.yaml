@@ -22,6 +22,18 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: setup golang
+        uses: actions/setup-go@v2
+        id: go
+        with:
+          go-version: 1.16
+
+      - name: verify modules
+        run: go mod verify
+
+      - name: build binary
+        run: make
+
       - name: set release version env var
         run: |
           echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
