@@ -69,10 +69,20 @@ func NewSysinfo(conf Config) (SysInfo, error) {
 		return sysinfo, fmt.Errorf("no allocatable cpus")
 	}
 
-	sysinfo.Resources, err = GetPCIResources(conf.ResourceMapping, GetPCIDevices)
+	pciRes, err := GetPCIResources(conf.ResourceMapping, GetPCIDevices)
 	if err != nil {
 		return sysinfo, err
 	}
+	sysinfo.Resources = mergeResources(sysinfo.Resources, pciRes)
+
+	hpRes, err := GetHugepageResources(GetHugepages)
+	if err != nil {
+		return sysinfo, err
+	}
+	sysinfo.Resources = mergeResources(sysinfo.Resources, hpRes)
+
+	// let's leverage ghe, once it's ready, to learn about regular memory, if needed.
+
 	return sysinfo, nil
 }
 
@@ -121,6 +131,32 @@ func GetPCIResources(resourceMap map[string]string, getPCIs func() ([]*pci.Devic
 	return numaResources, nil
 }
 
+func GetHugepageResources(getHPs func() ([]*Hugepages, error)) (map[string]PerNUMADevices, error) {
+	numaResources := make(map[string]PerNUMADevices)
+	hugepages, err := getHPs()
+	if err != nil {
+		return numaResources, err
+	}
+
+	for _, hpage := range hugepages {
+		if hpage.Total == 0 {
+			continue
+		}
+		// TODO: create the name like kubelet does
+		resourceName := fmt.Sprintf("hugepages-%dkB", hpage.SizeKB)
+		numaDevs, ok := numaResources[resourceName]
+		if !ok {
+			numaDevs = make(PerNUMADevices)
+		}
+
+		numaDevs[hpage.NodeID] = append(numaDevs[hpage.NodeID], fmt.Sprintf("%d", hpage.Total))
+		numaResources[resourceName] = numaDevs
+	}
+
+	return numaResources, nil
+
+}
+
 func ResourceNameForDevice(dev *pci.Device, resourceMap map[string]string) (string, bool) {
 	devID := fmt.Sprintf("%s:%s", dev.Vendor.ID, dev.Product.ID)
 	if resourceName, ok := resourceMap[devID]; ok {
@@ -149,4 +185,11 @@ func GetPCIDevices() ([]*pci.Device, error) {
 		return nil, err
 	}
 	return info.Devices, nil
+}
+
+func mergeResources(resources map[string]PerNUMADevices, extra map[string]PerNUMADevices) map[string]PerNUMADevices {
+	for name, data := range extra {
+		resources[name] = data
+	}
+	return resources
 }
