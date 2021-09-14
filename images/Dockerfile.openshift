@@ -14,4 +14,5 @@ FROM registry.access.redhat.com/ubi8/ubi
 COPY --from=builder /go/src/github.com/openshift-kni/resource-topology-exporter/_out/resource-topology-exporter /bin/resource-topology-exporter
 RUN mkdir /etc/resource-topology-exporter/ && \
     touch /etc/resource-topology-exporter/config.yaml
+RUN dnf install pciutils
 ENTRYPOINT ["/bin/resource-topology-exporter"]
