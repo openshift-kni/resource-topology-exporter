@@ -2,4 +2,5 @@ FROM registry.access.redhat.com/ubi8/ubi-minimal
 ADD _out/resource-topology-exporter /bin/resource-topology-exporter
 RUN mkdir /etc/resource-topology-exporter/ && \
     touch /etc/resource-topology-exporter/config.yaml
+RUN microdnf install pciutils
 ENTRYPOINT ["/bin/resource-topology-exporter"]
