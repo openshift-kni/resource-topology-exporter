@@ -59,7 +59,7 @@ func main() {
 	log.Printf("%s", sysInfo)
 	log.Printf("==========================\n")
 
-	k8sCli, err := podrescli.NewK8SClient(resourcemonitorArgs.PodResourceSocketPath)
+	k8sCli, err := podrescli.NewK8SClient(rteArgs.PodResourcesSocketPath)
 	if err != nil {
 		log.Fatalf("failed to get podresources k8s client: %v", err)
 	}
@@ -181,7 +181,7 @@ func argsParse(argv []string) (nrtupdater.Args, resourcemonitor.Args, resourceto
 		}
 	}
 
-	resourcemonitorArgs.SleepInterval, err = time.ParseDuration(arguments["--sleep-interval"].(string))
+	rteArgs.SleepInterval, err = time.ParseDuration(arguments["--sleep-interval"].(string))
 	if err != nil {
 		return nrtupdaterArgs, resourcemonitorArgs, rteArgs, localArgs, fmt.Errorf("invalid --sleep-interval specified: %w", err)
 	}
@@ -189,26 +189,26 @@ func argsParse(argv []string) (nrtupdater.Args, resourcemonitor.Args, resourceto
 		resourcemonitorArgs.Namespace = ns
 	}
 	if kubeletConfigPath, ok := arguments["--kubelet-config-file"].(string); ok {
-		resourcemonitorArgs.KubeletConfigFile = kubeletConfigPath
+		rteArgs.KubeletConfigFile = kubeletConfigPath
 	}
 	resourcemonitorArgs.SysfsRoot = arguments["--sysfs"].(string)
 	if path, ok := arguments["--podresources-socket"].(string); ok {
-		resourcemonitorArgs.PodResourceSocketPath = path
+		rteArgs.PodResourcesSocketPath = path
 	}
 
 	if kubeletStateDirs, ok := arguments["--kubelet-state-dir"].([]string); ok {
-		resourcemonitorArgs.KubeletStateDirs = kubeletStateDirs
+		rteArgs.KubeletStateDirs = kubeletStateDirs
 	}
 
 	rteArgs.Debug = arguments["--debug"].(bool)
 	if refCnt, ok := arguments["--reference-container"].(string); ok {
-		rteArgs.ReferenceContainer, err = resourcetopologyexporter.ContainerIdentFromString(refCnt)
+		rteArgs.ReferenceContainer, err = podrescli.ContainerIdentFromString(refCnt)
 		if err != nil {
 			return nrtupdaterArgs, resourcemonitorArgs, rteArgs, localArgs, err
 		}
 	}
 	if rteArgs.ReferenceContainer == nil {
-		rteArgs.ReferenceContainer = resourcetopologyexporter.ContainerIdentFromEnv()
+		rteArgs.ReferenceContainer = podrescli.ContainerIdentFromEnv()
 	}
 
 	if configPath, ok := arguments["--config"].(string); ok {

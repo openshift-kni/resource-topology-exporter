@@ -3,16 +3,15 @@ package nrtupdater
 import (
 	"context"
 	"fmt"
-	"log"
-	"os"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog/v2"
 
 	v1alpha1 "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
-	"k8s.io/apimachinery/pkg/api/errors"
-
-	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/dumpobject"
+	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/prometheus"
+	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/utils"
 )
 
 const (
@@ -22,11 +21,6 @@ const (
 const (
 	RTEUpdatePeriodic = "periodic"
 	RTEUpdateReactive = "reactive"
-)
-
-var (
-	stdoutLogger = log.New(os.Stdout, "", log.LstdFlags)
-	stderrLogger = log.New(os.Stderr, "", log.LstdFlags)
 )
 
 // Command line arguments
@@ -47,6 +41,13 @@ type MonitorInfo struct {
 	Zones v1alpha1.ZoneList
 }
 
+func (mi MonitorInfo) UpdateReason() string {
+	if mi.Timer {
+		return RTEUpdatePeriodic
+	}
+	return RTEUpdateReactive
+}
+
 func NewNRTUpdater(args Args, policy string) (*NRTUpdater, error) {
 	te := &NRTUpdater{
 		args:     args,
@@ -55,15 +56,8 @@ func NewNRTUpdater(args Args, policy string) (*NRTUpdater, error) {
 	return te, nil
 }
 
-func updateReason(info MonitorInfo) string {
-	if info.Timer {
-		return RTEUpdatePeriodic
-	}
-	return RTEUpdateReactive
-}
-
 func (te *NRTUpdater) Update(info MonitorInfo) error {
-	stdoutLogger.Printf("update: sending zone: '%s'", dumpobject.DumpObject(info.Zones))
+	klog.V(3).Infof("update: sending zone: '%s'", utils.Dump(info.Zones))
 
 	if te.args.NoPublish {
 		return nil
@@ -80,7 +74,7 @@ func (te *NRTUpdater) Update(info MonitorInfo) error {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: te.args.Hostname,
 				Annotations: map[string]string{
-					AnnotationRTEUpdate: updateReason(info),
+					AnnotationRTEUpdate: info.UpdateReason(),
 				},
 			},
 			Zones:            info.Zones,
@@ -91,7 +85,7 @@ func (te *NRTUpdater) Update(info MonitorInfo) error {
 		if err != nil {
 			return fmt.Errorf("update failed to create v1alpha1.NodeResourceTopology!:%v", err)
 		}
-		log.Printf("update created CRD instance: %v", dumpobject.DumpObject(nrtCreated))
+		klog.V(2).Infof("update created CRD instance: %v", utils.Dump(nrtCreated))
 		return nil
 	}
 
@@ -103,14 +97,14 @@ func (te *NRTUpdater) Update(info MonitorInfo) error {
 	if nrtMutated.Annotations == nil {
 		nrtMutated.Annotations = make(map[string]string)
 	}
-	nrtMutated.Annotations[AnnotationRTEUpdate] = updateReason(info)
+	nrtMutated.Annotations[AnnotationRTEUpdate] = info.UpdateReason()
 	nrtMutated.Zones = info.Zones
 
 	nrtUpdated, err := cli.TopologyV1alpha1().NodeResourceTopologies(te.args.Namespace).Update(context.TODO(), nrtMutated, metav1.UpdateOptions{})
 	if err != nil {
 		return fmt.Errorf("update failed to update v1alpha1.NodeResourceTopology!:%v", err)
 	}
-	log.Printf("update changed CRD instance: %v", nrtUpdated)
+	klog.V(3).Infof("update changed CRD instance: %v", nrtUpdated)
 	return nil
 }
 
@@ -122,16 +116,17 @@ func (te *NRTUpdater) Run(infoChannel <-chan MonitorInfo) chan<- struct{} {
 			case info := <-infoChannel:
 				tsBegin := time.Now()
 				if err := te.Update(info); err != nil {
-					log.Printf("failed to update: %v", err)
+					klog.Warning("failed to update: %v", err)
 				}
 				tsEnd := time.Now()
 
-				log.Printf("update request received at %v completed in %v", tsBegin, tsEnd.Sub(tsBegin))
+				tsDiff := tsEnd.Sub(tsBegin)
+				prometheus.UpdateOperationDelayMetric("node_resource_object_update", RTEUpdateReactive, float64(tsDiff.Milliseconds()))
 				if te.args.Oneshot {
 					break
 				}
 			case <-done:
-				log.Printf("update stop at %v", time.Now())
+				klog.Infof("update stop at %v", time.Now())
 				break
 			}
 		}
