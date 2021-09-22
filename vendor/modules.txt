@@ -83,7 +83,7 @@ github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1
 github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned
 github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned/scheme
 github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned/typed/topology/v1alpha1
-# github.com/k8stopologyawareschedwg/resource-topology-exporter v0.2.0
+# github.com/k8stopologyawareschedwg/resource-topology-exporter v0.2.1
 ## explicit
 github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/kubeconf
 github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/nrtupdater
@@ -91,6 +91,7 @@ github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/podrescli
 github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/prometheus
 github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/resourcemonitor
 github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/resourcetopologyexporter
+github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/sysinfo
 github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/utils
 # github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369
 github.com/matttproud/golang_protobuf_extensions/pbutil
