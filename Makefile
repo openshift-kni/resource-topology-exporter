@@ -65,7 +65,7 @@ build-e2e: outdir
 
 .PHONY: test-e2e
 test-e2e: build-e2e
-	_out/rte-e2e.test
+	_out/rte-e2e.test -ginkgo.focus="\[TopologyUpdater\]\[InfraConsuming\] Node topology updater"
 
 .PHONY: test-e2e-full
 	go test -v ./test/e2e/
