@@ -7,6 +7,8 @@ require (
 	github.com/jaypipes/ghw v0.8.1-0.20210609141030-acb1a36eaf89
 	github.com/jaypipes/pcidb v0.6.0
 	github.com/k8stopologyawareschedwg/resource-topology-exporter v0.2.1
+	github.com/onsi/ginkgo v1.14.0
+	github.com/onsi/gomega v1.10.1
 	google.golang.org/grpc v1.38.0
 	k8s.io/kubelet v0.22.1
 	k8s.io/kubernetes v1.22.1
@@ -45,3 +47,5 @@ replace (
 	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.22.1
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.22.1
 )
+
+replace github.com/k8stopologyawareschedwg/resource-topology-exporter => github.com/k8stopologyawareschedwg/resource-topology-exporter v0.2.4-0.20211017133307-2f6d3f3dc98f
