@@ -18,18 +18,12 @@ limitations under the License.
  * resource-topology-exporter specific tests
  */
 
-package e2e
+package rte
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"time"
 
-	goversion "github.com/hashicorp/go-version"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 
@@ -40,8 +34,10 @@ import (
 	"github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
 	topologyclientset "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/nrtupdater"
-	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/version"
-	"github.com/k8stopologyawareschedwg/resource-topology-exporter/test/e2e/utils"
+	e2enodes "github.com/k8stopologyawareschedwg/resource-topology-exporter/test/e2e/utils/nodes"
+	e2enodetopology "github.com/k8stopologyawareschedwg/resource-topology-exporter/test/e2e/utils/nodetopology"
+	e2epods "github.com/k8stopologyawareschedwg/resource-topology-exporter/test/e2e/utils/pods"
+	e2etestenv "github.com/k8stopologyawareschedwg/resource-topology-exporter/test/e2e/utils/testenv"
 )
 
 const (
@@ -66,8 +62,8 @@ var _ = ginkgo.Describe("[RTE][InfraConsuming] Resource topology exporter", func
 		var err error
 
 		if !initialized {
-			nodeName = utils.GetNodeName()
-			namespace = getNamespaceName()
+			nodeName = e2etestenv.GetNodeName()
+			namespace = e2etestenv.GetNamespaceName()
 
 			topologyClient, err = topologyclientset.NewForConfig(f.ClientConfig())
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -75,7 +71,7 @@ var _ = ginkgo.Describe("[RTE][InfraConsuming] Resource topology exporter", func
 			topologyUpdaterNode, err = f.ClientSet.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			workerNodes, err = utils.GetWorkerNodes(f)
+			workerNodes, err = e2enodes.GetWorkerNodes(f)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			initialized = true
@@ -84,20 +80,20 @@ var _ = ginkgo.Describe("[RTE][InfraConsuming] Resource topology exporter", func
 
 	ginkgo.Context("with cluster configured", func() {
 		ginkgo.It("it should react to pod changes using the smart poller", func() {
-			nodes, err := utils.FilterNodesWithEnoughCores(workerNodes, "1000m")
+			nodes, err := e2enodes.FilterNodesWithEnoughCores(workerNodes, "1000m")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			if len(nodes) < 1 {
 				ginkgo.Skip("not enough allocatable cores for this test")
 			}
 
-			initialNodeTopo := getNodeTopology(topologyClient, topologyUpdaterNode.Name, namespace)
+			initialNodeTopo := e2enodetopology.GetNodeTopology(topologyClient, topologyUpdaterNode.Name, namespace)
 			ginkgo.By("creating a pod consuming the shared pool")
-			sleeperPod := utils.MakeGuaranteedSleeperPod("1000m")
+			sleeperPod := e2epods.MakeGuaranteedSleeperPod("1000m")
 
 			podMap := make(map[string]*v1.Pod)
 			pod := f.PodClient().CreateSync(sleeperPod)
 			podMap[pod.Name] = pod
-			defer utils.DeletePodsAsync(f, podMap)
+			defer e2epods.DeletePodsAsync(f, podMap)
 
 			ginkgo.By("getting the updated topology")
 			var finalNodeTopo *v1alpha1.NodeResourceTopology
@@ -116,96 +112,4 @@ var _ = ginkgo.Describe("[RTE][InfraConsuming] Resource topology exporter", func
 			gomega.Expect(reason).To(gomega.Equal(nrtupdater.RTEUpdateReactive), "update reason error: expected %q got %q", nrtupdater.RTEUpdateReactive, reason)
 		})
 	})
-
-	ginkgo.Context("with the binary available", func() {
-		ginkgo.It("it should show the correct version", func() {
-			cmdline := []string{
-				filepath.Join(utils.BinariesPath, "resource-topology-exporter"),
-				"--version",
-			}
-			fmt.Fprintf(ginkgo.GinkgoWriter, "running: %v\n", cmdline)
-
-			cmd := exec.Command(cmdline[0], cmdline[1:]...)
-			cmd.Stderr = ginkgo.GinkgoWriter
-			out, err := cmd.Output()
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-			text := strings.TrimSpace(strings.Trim(string(out), version.ProgramName))
-			_, err = goversion.NewVersion(text)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		})
-	})
 })
-
-func availableResourceListFromNodeResourceTopology(nodeTopo *v1alpha1.NodeResourceTopology) map[string]v1.ResourceList {
-	availRes := make(map[string]v1.ResourceList)
-	for _, zone := range nodeTopo.Zones {
-		if zone.Type != "Node" {
-			continue
-		}
-		resList := make(v1.ResourceList)
-		for _, res := range zone.Resources {
-			resList[v1.ResourceName(res.Name)] = res.Available
-		}
-		if len(resList) == 0 {
-			continue
-		}
-		availRes[zone.Name] = resList
-	}
-	return availRes
-}
-
-func lessAvailableResources(expected, got map[string]v1.ResourceList) (string, string, bool) {
-	zoneName, resName, cmp, ok := cmpAvailableResources(expected, got)
-	if !ok {
-		framework.Logf("-> cmp failed (not ok)")
-		return "", "", false
-	}
-	if cmp < 0 {
-		return zoneName, resName, true
-	}
-	framework.Logf("-> cmp failed (value=%d)", cmp)
-	return "", "", false
-}
-
-func cmpAvailableResources(expected, got map[string]v1.ResourceList) (string, string, int, bool) {
-	if len(got) != len(expected) {
-		framework.Logf("-> expected=%v (len=%d) got=%v (len=%d)", expected, len(expected), got, len(got))
-		return "", "", 0, false
-	}
-	for expZoneName, expResList := range expected {
-		gotResList, ok := got[expZoneName]
-		if !ok {
-			return expZoneName, "", 0, false
-		}
-		if resName, cmp, ok := cmpResourceList(expResList, gotResList); !ok || cmp != 0 {
-			return expZoneName, resName, cmp, ok
-		}
-	}
-	return "", "", 0, true
-}
-
-func cmpResourceList(expected, got v1.ResourceList) (string, int, bool) {
-	if len(got) != len(expected) {
-		framework.Logf("-> expected=%v (len=%d) got=%v (len=%d)", expected, len(expected), got, len(got))
-		return "", 0, false
-	}
-	for expResName, expResQty := range expected {
-		gotResQty, ok := got[expResName]
-		if !ok {
-			return string(expResName), 0, false
-		}
-		if cmp := gotResQty.Cmp(expResQty); cmp != 0 {
-			framework.Logf("-> resource=%q cmp=%d expected=%v got=%v", expResName, cmp, expResQty, gotResQty)
-			return string(expResName), cmp, true
-		}
-	}
-	return "", 0, true
-}
-
-func getNamespaceName() string {
-	if nsName, ok := os.LookupEnv("E2E_NAMESPACE_NAME"); ok {
-		return nsName
-	}
-	return defaultNamespace
-}
