@@ -1,0 +1,105 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rte-handler
+rules:
+  - apiGroups: ["topology.node.k8s.io"]
+    resources: ["noderesourcetopologies"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get","list","watch","update"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["*"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: handle-rte
+subjects:
+  - kind: ServiceAccount
+    name: rte-account
+    namespace: ${RTE_NAMESPACE}
+roleRef:
+  kind: ClusterRole
+  name: rte-handler
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rte-account
+  namespace: ${RTE_NAMESPACE}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: resource-topology-exporter-ds
+  namespace: ${RTE_NAMESPACE}
+spec:
+  selector:
+    matchLabels:
+      name: resource-topology
+  template:
+    metadata:
+      labels:
+        name: resource-topology
+    spec:
+      serviceAccountName: rte-account
+      containers:
+        - name: resource-topology-exporter-container
+          image: ${RTE_CONTAINER_IMAGE}
+          command:
+            - /bin/resource-topology-exporter
+            - --export-namespace=${RTE_NAMESPACE}
+            - --sleep-interval=${RTE_POLL_INTERVAL}
+            - --sysfs=/host-sys
+            - --kubelet-state-dir=/host-var/lib/kubelet
+            - --podresources-socket=unix:///host-var/lib/kubelet/pod-resources/kubelet.sock
+            - --config=${RTE_CONFIG_FILE}
+            - --topology-manager-policy=${TOPOLOGY_MANAGER_POLICY}
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: REFERENCE_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: REFERENCE_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: REFERENCE_CONTAINER_NAME
+              value: shared-pool-container
+            - name: METRICS_PORT
+              value: "${METRICS_PORT}"
+          volumeMounts:
+            - name: host-sys
+              mountPath: "/host-sys"
+              readOnly: true
+            - name: host-kubelet-state
+              mountPath: "/host-var/lib/kubelet"
+            - name: rte-config
+              mountPath: "/etc/resource-topology-exporter"
+          ports:
+            - name: metrics-port
+              containerPort: ${METRICS_PORT}
+        - name: shared-pool-container
+          image: gcr.io/google_containers/pause-amd64:3.0
+      volumes:
+        - name: host-sys
+          hostPath:
+            path: "/sys"
+        - name: host-kubelet-state
+          hostPath:
+            path: "/var/lib/kubelet"
+        - name: rte-config
+          configMap:
+            name: rte-config
+            optional: true

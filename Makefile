@@ -72,15 +72,14 @@ test-e2e: build-e2e
 
 .PHONY: deploy
 deploy:
-	$(KUBECLI) create -f $(TOPOLOGYAPI_MANIFESTS)/crd.yaml
-	hack/get-manifest-ds.sh | $(KUBECLI) create -f -
+	hack/deploy.sh
 
 .PHONY: undeploy
 undeploy:
-	$(KUBECLI) delete -f $(TOPOLOGYAPI_MANIFESTS)/crd.yaml
-	hack/get-manifest-ds.sh | $(KUBECLI) delete -f -
+	$(KUBECLI) delete -f manifests/crd.yaml
+	hack/undeploy.sh
 
 .PHONY: gen-manifests
 gen-manifests:
-	@curl -L $(TOPOLOGYAPI_MANIFESTS)/crd.yaml
-	@hack/get-manifest-ds.sh
+	@cat manifests/crd.yaml
+	@hack/get-manifests.sh
