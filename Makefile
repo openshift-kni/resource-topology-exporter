@@ -87,3 +87,11 @@ gen-manifests:
 .PHONY: label-custom-kubelet
 label-custom-kubelet:
 	hack/label-custom-kubelet.sh
+
+.PHONY: kube-update
+kube-update: label-custom-kubelet
+	hack/kube-update.sh
+
+.PHONY: wait-for-mcp
+wait-for-mcp:
+	hack/wait-for-mcp.sh
