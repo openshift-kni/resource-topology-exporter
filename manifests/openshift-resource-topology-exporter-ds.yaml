@@ -90,6 +90,8 @@ spec:
           ports:
             - name: metrics-port
               containerPort: ${METRICS_PORT}
+          securityContext:
+            privileged: true
         - name: shared-pool-container
           image: gcr.io/google_containers/pause-amd64:3.0
       volumes:
