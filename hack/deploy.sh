@@ -37,6 +37,9 @@ RTE_CONFIG_FILE=/etc/resource-topology-exporter/config.yaml \
 TOPOLOGY_MANAGER_POLICY=single-numa-node \
 make gen-manifests | tee rte.yaml
 
+echo "Create CRD"
+$OC_TOOL create -f manifests/crd.yaml
+
 echo "Deploy RTE"
 $OC_TOOL adm policy add-scc-to-user privileged system:serviceaccount:"$RTE_NAMESPACE":rte-account
 $OC_TOOL create -f rte.yaml
