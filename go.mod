@@ -6,7 +6,7 @@ require (
 	github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815
 	github.com/jaypipes/ghw v0.8.1-0.20210609141030-acb1a36eaf89
 	github.com/jaypipes/pcidb v0.6.0
-	github.com/k8stopologyawareschedwg/resource-topology-exporter v0.2.6-0.20211028162703-4629166d3493
+	github.com/k8stopologyawareschedwg/resource-topology-exporter v0.2.6-0.20211031121932-7da5bef64745
 	github.com/onsi/ginkgo v1.14.0
 	github.com/onsi/gomega v1.10.1
 	google.golang.org/grpc v1.38.0
