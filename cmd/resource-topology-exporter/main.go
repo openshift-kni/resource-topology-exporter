@@ -25,6 +25,7 @@ import (
 
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/nrtupdater"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/podrescli"
+	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/prometheus"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/resourcemonitor"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/resourcetopologyexporter"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/version"
@@ -86,6 +87,11 @@ func main() {
 		log.Fatalf("failed to get podresources filtering client: %v", err)
 	}
 
+	err = prometheus.InitPrometheus()
+	if err != nil {
+		log.Fatalf("failed to start prometheus server: %v", err)
+	}
+
 	err = resourcetopologyexporter.Execute(cli, parsedArgs.NRTupdater, parsedArgs.Resourcemonitor, parsedArgs.RTE)
 	if err != nil {
 		log.Fatalf("failed to execute: %v", err)
@@ -109,6 +115,9 @@ func parseArgs(args ...string) (ProgArgs, error) {
 	flags.BoolVar(&pArgs.NRTupdater.Oneshot, "oneshot", false, "Update once and exit.")
 	flags.StringVar(&pArgs.NRTupdater.Namespace, "export-namespace", "", "Namespace on which update CRDs. Use \"\" for all namespaces")
 	flags.StringVar(&pArgs.NRTupdater.Hostname, "hostname", defaultHostName(), "Override the node hostname.")
+
+	flags.StringVar(&pArgs.Resourcemonitor.Namespace, "watch-namespace", "", "Namespace to watch pods for. Use \"\" for all namespaces.")
+	flags.StringVar(&pArgs.Resourcemonitor.SysfsRoot, "sysfs", "/sys", "Top-level component path of sysfs.")
 
 	flags.StringVar(&configPath, "config", "/etc/resource-topology-exporter/config.yaml", "Configuration file path. Use this to set the exclude list.")
 
