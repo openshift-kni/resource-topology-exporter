@@ -57,7 +57,7 @@ push: image
 
 .PHONY: test-unit
 test-unit:
-	[ -d ./pkg ] && go test ./pkg/... || :
+	[ -d ./pkg ] && go test ./pkg/... ./cmd/... || :
 
 build-e2e: outdir
 	# need to use makefile rules in a better way
@@ -94,3 +94,7 @@ kube-update: label-custom-kubelet
 .PHONY: wait-for-mcp
 wait-for-mcp:
 	hack/wait-for-mcp.sh
+
+.PHONY: update-golden-files
+update-golden-files:
+	@go test ./cmd/... -update
