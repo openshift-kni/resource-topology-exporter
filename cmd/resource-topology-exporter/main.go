@@ -25,17 +25,14 @@ import (
 
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/nrtupdater"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/podrescli"
+	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/prometheus"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/resourcemonitor"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/resourcetopologyexporter"
+	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/version"
 
 	"github.com/openshift-kni/resource-topology-exporter/pkg/config"
 	"github.com/openshift-kni/resource-topology-exporter/pkg/podrescompat"
 	"github.com/openshift-kni/resource-topology-exporter/pkg/sysinfo"
-)
-
-const (
-	// ProgramName is the canonical name of this program
-	ProgramName = "resource-topology-exporter"
 )
 
 type localArgs struct {
@@ -61,7 +58,7 @@ func main() {
 	}
 
 	if parsedArgs.Version {
-		fmt.Println(ProgramName, "TODO add Version track logic")
+		fmt.Println(version.ProgramName, version.Get())
 		os.Exit(0)
 	}
 
@@ -90,6 +87,11 @@ func main() {
 		log.Fatalf("failed to get podresources filtering client: %v", err)
 	}
 
+	err = prometheus.InitPrometheus()
+	if err != nil {
+		log.Fatalf("failed to start prometheus server: %v", err)
+	}
+
 	err = resourcetopologyexporter.Execute(cli, parsedArgs.NRTupdater, parsedArgs.Resourcemonitor, parsedArgs.RTE)
 	if err != nil {
 		log.Fatalf("failed to execute: %v", err)
@@ -107,12 +109,15 @@ func parseArgs(args ...string) (ProgArgs, error) {
 	}
 
 	var configPath string
-	flags := flag.NewFlagSet(ProgramName, flag.ExitOnError)
+	flags := flag.NewFlagSet(version.ProgramName, flag.ExitOnError)
 
 	flags.BoolVar(&pArgs.NRTupdater.NoPublish, "no-publish", false, "Do not publish discovered features to the cluster-local Kubernetes API server.")
 	flags.BoolVar(&pArgs.NRTupdater.Oneshot, "oneshot", false, "Update once and exit.")
 	flags.StringVar(&pArgs.NRTupdater.Namespace, "export-namespace", "", "Namespace on which update CRDs. Use \"\" for all namespaces")
 	flags.StringVar(&pArgs.NRTupdater.Hostname, "hostname", defaultHostName(), "Override the node hostname.")
+
+	flags.StringVar(&pArgs.Resourcemonitor.Namespace, "watch-namespace", "", "Namespace to watch pods for. Use \"\" for all namespaces.")
+	flags.StringVar(&pArgs.Resourcemonitor.SysfsRoot, "sysfs", "/sys", "Top-level component path of sysfs.")
 
 	flags.StringVar(&configPath, "config", "/etc/resource-topology-exporter/config.yaml", "Configuration file path. Use this to set the exclude list.")
 
@@ -125,10 +130,14 @@ func parseArgs(args ...string) (ProgArgs, error) {
 	kubeletStateDirs := flags.String("kubelet-state-dir", "", "Kubelet state directory (RO access needed), for smart polling.")
 	refCnt := flags.String("reference-container", "", "Reference container, used to learn about the shared cpu pool\n See: https://github.com/kubernetes/kubernetes/issues/102190\n format of spec is namespace/podname/containername.\n Alternatively, you can use the env vars REFERENCE_NAMESPACE, REFERENCE_POD_NAME, REFERENCE_CONTAINER_NAME.")
 
-	pArgs.Version = *flags.Bool("version", false, "Output version and exit")
+	flags.BoolVar(&pArgs.Version, "version", false, "Output version and exit")
 
 	err := flags.Parse(args)
 	if err != nil {
+		return pArgs, err
+	}
+
+	if pArgs.Version {
 		return pArgs, err
 	}
 

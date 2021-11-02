@@ -9,13 +9,20 @@ IMAGENAME ?= resource-topology-exporter
 IMAGETAG ?= latest
 RTE_CONTAINER_IMAGE ?= quay.io/$(REPOOWNER)/$(IMAGENAME):$(IMAGETAG)
 
+VERSION := $(shell git tag --sort=committerdate | head -n 1)
+ifeq ($(VERSION),)
+	VERSION = v0.0.0
+endif
+
+LDFLAGS = -ldflags "-s -w -X github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/version.version=$(VERSION)"
+
 .PHONY: all
 all: build
 
 .PHONY: build
 build: outdir
 	go version
-	$(COMMONENVVAR) $(BUILDENVVAR) go build -ldflags '-w' -o _out/resource-topology-exporter cmd/resource-topology-exporter/main.go
+	$(COMMONENVVAR) $(BUILDENVVAR) go build $(LDFLAGS) -o _out/resource-topology-exporter cmd/resource-topology-exporter/main.go
 
 .PHONY: gofmt
 gofmt:
@@ -65,7 +72,7 @@ build-e2e: outdir
 
 .PHONY: test-e2e
 test-e2e: build-e2e
-	_out/rte-e2e.test -ginkgo.focus="\[TopologyUpdater\]\[InfraConsuming\] Node topology updater"
+	_out/rte-e2e.test
 
 .PHONY: test-e2e-full
 	go test -v ./test/e2e/
