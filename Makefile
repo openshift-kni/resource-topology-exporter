@@ -71,7 +71,7 @@ build-e2e: outdir
 	[ -x _out/rte-e2e.test ] || go test -v -c -o _out/rte-e2e.test ./test/e2e/
 
 .PHONY: test-e2e
-test-e2e: build-e2e
+test-e2e: binaries build-e2e
 	_out/rte-e2e.test
 
 .PHONY: test-e2e-full
