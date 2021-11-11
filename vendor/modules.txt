@@ -109,7 +109,7 @@ github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1
 github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned
 github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned/scheme
 github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned/typed/topology/v1alpha1
-# github.com/k8stopologyawareschedwg/resource-topology-exporter v0.2.6-0.20211104082133-eabd0b87af8c
+# github.com/k8stopologyawareschedwg/resource-topology-exporter v0.2.6-0.20211111145943-88595fb0d865
 ## explicit
 github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/kubeconf
 github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/nrtupdater
@@ -118,6 +118,7 @@ github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/prometheus
 github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/resourcemonitor
 github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/resourcetopologyexporter
 github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/sysinfo
+github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/topologypolicy
 github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/utils
 github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/version
 github.com/k8stopologyawareschedwg/resource-topology-exporter/test/e2e/rte

@@ -35,6 +35,7 @@ RTE_POLL_INTERVAL=10s \
 RTE_NAMESPACE=${RTE_NAMESPACE} \
 RTE_CONFIG_FILE=/etc/resource-topology-exporter/config.yaml \
 TOPOLOGY_MANAGER_POLICY=single-numa-node \
+TOPOLOGY_MANAGER_SCOPE=container \
 make gen-manifests | tee rte.yaml
 
 echo "Create CRD"
