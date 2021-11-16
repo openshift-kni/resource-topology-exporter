@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/jaypipes/ghw v0.8.1-0.20210609141030-acb1a36eaf89
 	github.com/jaypipes/pcidb v0.6.0
-	github.com/k8stopologyawareschedwg/resource-topology-exporter v0.2.7-0.20211115173956-714a94763db8
+	github.com/k8stopologyawareschedwg/resource-topology-exporter v0.2.7
 	github.com/onsi/ginkgo v1.14.0
 	github.com/onsi/gomega v1.10.1
 	github.com/smartystreets/goconvey v1.6.4
