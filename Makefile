@@ -77,6 +77,12 @@ test-e2e: binaries build-e2e
 .PHONY: test-e2e-full
 	go test -v ./test/e2e/
 
+# a specific target for running e2e tests under the KNI's CI
+# this assumes to be running on a vanilla OCP cluster
+.PHONY: test-e2e-kni
+test-e2e-kni: build-e2e
+	hack/e2e-kni.sh
+
 .PHONY: deploy
 deploy:
 	hack/deploy.sh
