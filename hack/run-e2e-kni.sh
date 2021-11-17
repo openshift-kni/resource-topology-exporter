@@ -11,6 +11,7 @@ PROJECT_DIR="${BASE_DIR}"/..
 export RTE_NAMESPACE="${RTE_NAMESPACE:-rte-e2e}"
 export E2E_NAMESPACE_NAME="${E2E_NAMESPACE_NAME:-rte-e2e}"
 export E2E_TOPOLOGY_MANAGER_POLICY="${E2E_TOPOLOGY_MANAGER_POLICY:-single-numa-node}"
+export RTE_CONTAINER_IMAGE="${RTE_CONTAINER_IMAGE}"
 
 make -C "${PROJECT_DIR}" kube-update
 make -C "${PROJECT_DIR}" wait-for-mcp

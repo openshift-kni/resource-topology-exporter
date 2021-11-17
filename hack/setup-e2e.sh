@@ -4,8 +4,9 @@ set -xue
 
 # expect oc to be in PATH by default
 OC_TOOL="${OC_TOOL:-oc}"
-RTE_CONTAINER_IMAGE="${RTE_CONTAINER_IMAGE:-quay.io/openshift-kni/resource-topology-exporter:4.9-snapshot}"
 RTE_NAMESPACE="${RTE_NAMESPACE:-rte-e2e}"
+# mention explicitly to avoid from running tests with obsolete version
+RTE_CONTAINER_IMAGE="${RTE_CONTAINER_IMAGE}"
 
 echo "Deploying using image $RTE_CONTAINER_IMAGE."
 
