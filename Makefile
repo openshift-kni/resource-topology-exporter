@@ -81,7 +81,7 @@ test-e2e: binaries build-e2e
 # this assumes to be running on a vanilla OCP cluster
 .PHONY: test-e2e-kni
 test-e2e-kni: build-e2e
-	hack/e2e-kni.sh
+	hack/run-e2e-kni.sh
 
 .PHONY: deploy
 deploy:
