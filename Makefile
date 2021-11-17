@@ -72,10 +72,16 @@ build-e2e: outdir
 
 .PHONY: test-e2e
 test-e2e: binaries build-e2e
-	_out/rte-e2e.test
+	_out/rte-e2e.test -ginkgo.focus='\[TopologyUpdater\]*'
 
 .PHONY: test-e2e-full
 	go test -v ./test/e2e/
+
+# a specific target for running e2e tests under the KNI's CI
+# this assumes to be running on a vanilla OCP cluster
+.PHONY: test-e2e-kni
+test-e2e-kni: build-e2e
+	hack/e2e-kni.sh
 
 .PHONY: deploy
 deploy:

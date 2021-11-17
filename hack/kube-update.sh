@@ -5,7 +5,7 @@ set -e
 # expect oc to be in PATH by default
 OC_TOOL="${OC_TOOL:-oc}"
 
-echo "Update Kubelet with necessary configuration for RTE deployment"
+echo "Updating Kubelet with necessary configuration for RTE deployment"
 cat << EOF | oc apply -f -
 apiVersion: machineconfiguration.openshift.io/v1
 kind: KubeletConfig
