@@ -18,10 +18,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"time"
+
+	"k8s.io/klog/v2"
 
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/nrtupdater"
 	"github.com/k8stopologyawareschedwg/resource-topology-exporter/pkg/podrescli"
@@ -54,7 +55,7 @@ func (pa *ProgArgs) ToJson() ([]byte, error) {
 func main() {
 	parsedArgs, err := parseArgs(os.Args[1:]...)
 	if err != nil {
-		log.Fatalf("failed to parse args: %v", err)
+		klog.Fatalf("failed to parse args: %v", err)
 	}
 
 	if parsedArgs.Version {
@@ -64,17 +65,17 @@ func main() {
 
 	// only for debug purposes
 	// printing the header so early includes any debug message from the sysinfo package
-	log.Printf("=== System information ===\n")
+	klog.Infof("=== System information ===\n")
 	sysInfo, err := sysinfo.NewSysinfo(parsedArgs.LocalArgs.SysConf)
 	if err != nil {
-		log.Fatalf("failed to query system info: %v", err)
+		klog.Fatalf("failed to query system info: %v", err)
 	}
-	log.Printf("%s", sysInfo)
-	log.Printf("==========================\n")
+	klog.Infof("%s", sysInfo)
+	klog.Infof("==========================\n")
 
 	k8sCli, err := podrescli.NewK8SClient(parsedArgs.RTE.PodResourcesSocketPath)
 	if err != nil {
-		log.Fatalf("failed to get podresources k8s client: %v", err)
+		klog.Fatalf("failed to start prometheus server: %v", err)
 	}
 
 	sysCli := k8sCli
@@ -84,17 +85,17 @@ func main() {
 
 	cli, err := podrescli.NewFilteringClientFromLister(sysCli, parsedArgs.RTE.Debug, parsedArgs.RTE.ReferenceContainer)
 	if err != nil {
-		log.Fatalf("failed to get podresources filtering client: %v", err)
+		klog.Fatalf("failed to get podresources filtering client: %v", err)
 	}
 
 	err = prometheus.InitPrometheus()
 	if err != nil {
-		log.Fatalf("failed to start prometheus server: %v", err)
+		klog.Fatalf("failed to start prometheus server: %v", err)
 	}
 
 	err = resourcetopologyexporter.Execute(cli, parsedArgs.NRTupdater, parsedArgs.Resourcemonitor, parsedArgs.RTE)
 	if err != nil {
-		log.Fatalf("failed to execute: %v", err)
+		klog.Fatalf("failed to execute: %v", err)
 	}
 }
 
@@ -111,9 +112,10 @@ func parseArgs(args ...string) (ProgArgs, error) {
 	var configPath string
 	flags := flag.NewFlagSet(version.ProgramName, flag.ExitOnError)
 
+	klog.InitFlags(flags)
+
 	flags.BoolVar(&pArgs.NRTupdater.NoPublish, "no-publish", false, "Do not publish discovered features to the cluster-local Kubernetes API server.")
 	flags.BoolVar(&pArgs.NRTupdater.Oneshot, "oneshot", false, "Update once and exit.")
-	flags.StringVar(&pArgs.NRTupdater.Namespace, "export-namespace", "", "Namespace on which update CRDs. Use \"\" for all namespaces")
 	flags.StringVar(&pArgs.NRTupdater.Hostname, "hostname", defaultHostName(), "Override the node hostname.")
 
 	flags.StringVar(&pArgs.Resourcemonitor.Namespace, "watch-namespace", "", "Namespace to watch pods for. Use \"\" for all namespaces.")
@@ -127,9 +129,12 @@ func parseArgs(args ...string) (ProgArgs, error) {
 	flags.DurationVar(&pArgs.RTE.SleepInterval, "sleep-interval", 60*time.Second, "Time to sleep between podresources API polls.")
 	flags.StringVar(&pArgs.RTE.KubeletConfigFile, "kubelet-config-file", "/podresources/config.yaml", "Kubelet config file path.")
 	flags.StringVar(&pArgs.RTE.PodResourcesSocketPath, "podresources-socket", "unix:///podresources/kubelet.sock", "Pod Resource Socket path to use.")
+	flags.BoolVar(&pArgs.RTE.PodReadinessEnable, "podreadiness", true, "Custom condition injection using Podreadiness.")
 
 	kubeletStateDirs := flags.String("kubelet-state-dir", "", "Kubelet state directory (RO access needed), for smart polling.")
 	refCnt := flags.String("reference-container", "", "Reference container, used to learn about the shared cpu pool\n See: https://github.com/kubernetes/kubernetes/issues/102190\n format of spec is namespace/podname/containername.\n Alternatively, you can use the env vars REFERENCE_NAMESPACE, REFERENCE_POD_NAME, REFERENCE_CONTAINER_NAME.")
+
+	flags.StringVar(&pArgs.RTE.NotifyFilePath, "notify-file", "", "Notification file path.")
 
 	flags.BoolVar(&pArgs.Version, "version", false, "Output version and exit")
 
@@ -161,7 +166,7 @@ func parseArgs(args ...string) (ProgArgs, error) {
 	}
 	if len(conf.ExcludeList) != 0 {
 		pArgs.Resourcemonitor.ExcludeList.ExcludeList = conf.ExcludeList
-		log.Printf("using exclude list:\n%s", pArgs.Resourcemonitor.ExcludeList.String())
+		klog.V(2).Infof("using exclude list:\n%s", pArgs.Resourcemonitor.ExcludeList.String())
 	}
 	pArgs.LocalArgs.SysConf = conf.Resources
 
@@ -180,7 +185,7 @@ func defaultHostName() string {
 	if !ok || val == "" {
 		val, err = os.Hostname()
 		if err != nil {
-			log.Fatalf("error getting the host name: %v", err)
+			klog.Fatalf("error getting the host name: %v", err)
 		}
 	}
 	return val
