@@ -100,7 +100,7 @@ func main() {
 
 // The args is passed only for testing purposes.
 func parseArgs(args ...string) (ProgArgs, error) {
-	pArgs := ProgArgs {
+	pArgs := ProgArgs{
 		nrtupdater.Args{},
 		resourcemonitor.Args{},
 		resourcetopologyexporter.Args{},
@@ -123,6 +123,7 @@ func parseArgs(args ...string) (ProgArgs, error) {
 
 	flags.BoolVar(&pArgs.RTE.Debug, "debug", false, " Enable debug output.")
 	flags.StringVar(&pArgs.RTE.TopologyManagerPolicy, "topology-manager-policy", defaultTopologyManagerPolicy(), "Explicitly set the topology manager policy instead of reading from the kubelet.")
+	flags.StringVar(&pArgs.RTE.TopologyManagerScope, "topology-manager-scope", defaultTopologyManagerScope(), "Explicitly set the topology manager scope instead of reading from the kubelet.")
 	flags.DurationVar(&pArgs.RTE.SleepInterval, "sleep-interval", 60*time.Second, "Time to sleep between podresources API polls.")
 	flags.StringVar(&pArgs.RTE.KubeletConfigFile, "kubelet-config-file", "/podresources/config.yaml", "Kubelet config file path.")
 	flags.StringVar(&pArgs.RTE.PodResourcesSocketPath, "podresources-socket", "unix:///podresources/kubelet.sock", "Pod Resource Socket path to use.")
@@ -191,6 +192,14 @@ func defaultTopologyManagerPolicy() string {
 	}
 	// empty string is a valid value here, so just keep going
 	return ""
+}
+
+func defaultTopologyManagerScope() string {
+	if val, ok := os.LookupEnv("TOPOLOGY_MANAGER_SCOPE"); ok {
+		return val
+	}
+	//https://kubernetes.io/docs/tasks/administer-cluster/topology-manager/#topology-manager-scopes
+	return "container"
 }
 
 func setKubeletStateDirs(value string) ([]string, error) {

@@ -75,7 +75,7 @@ func TestGetPCIResources(t *testing.T) {
 			map[string]string{"8086:1520": "intel_nics"},
 			map[string]PerNUMADevices{
 				"intel_nics": map[int][]string{
-					-1: []string{"0000:00:02.0", "0000:00:02.1"},
+					-1: {"0000:00:02.0", "0000:00:02.1"},
 				},
 			},
 		},
@@ -88,7 +88,7 @@ func TestGetPCIResources(t *testing.T) {
 			map[string]string{"8086:1520": "intel_nics"},
 			map[string]PerNUMADevices{
 				"intel_nics": map[int][]string{
-					0: []string{"0000:00:02.0", "0000:00:02.1"},
+					0: {"0000:00:02.0", "0000:00:02.1"},
 				},
 			},
 		},
@@ -101,8 +101,8 @@ func TestGetPCIResources(t *testing.T) {
 			map[string]string{"8086:1520": "intel_nics"},
 			map[string]PerNUMADevices{
 				"intel_nics": map[int][]string{
-					0: []string{"0000:00:02.0"},
-					1: []string{"0000:00:03.0"},
+					0: {"0000:00:02.0"},
+					1: {"0000:00:03.0"},
 				},
 			},
 		},

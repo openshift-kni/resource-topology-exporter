@@ -72,7 +72,7 @@ build-e2e: outdir
 
 .PHONY: test-e2e
 test-e2e: binaries build-e2e
-	_out/rte-e2e.test -ginkgo.focus='\[TopologyUpdater\]*'
+	_out/rte-e2e.test
 
 .PHONY: test-e2e-full
 	go test -v ./test/e2e/
@@ -82,14 +82,6 @@ test-e2e: binaries build-e2e
 .PHONY: test-e2e-kni
 test-e2e-kni: build-e2e
 	hack/run-e2e-kni.sh
-
-.PHONY: deploy
-deploy:
-	hack/deploy.sh
-
-.PHONY: undeploy
-undeploy:
-	hack/undeploy.sh
 
 .PHONY: gen-manifests
 gen-manifests:

@@ -26,5 +26,3 @@ spec:
     reservedMemory: [{"numaNode": 0, "limits": {"memory": "1124Mi"}}]
     topologyManagerPolicy: "single-numa-node"
 EOF
-
-make wait-for-mcp

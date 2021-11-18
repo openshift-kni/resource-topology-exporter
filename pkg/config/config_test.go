@@ -58,6 +58,9 @@ func TestReadValidData(t *testing.T) {
 	if cfg.TopologyManagerPolicy != "restricted" {
 		t.Errorf("unexpected values: %#v", cfg)
 	}
+	if cfg.TopologyManagerScope != "pod" {
+		t.Errorf("unexpected values: %#v", cfg)
+	}
 	if cfg.Resources.ReservedCPUs != "0" {
 		t.Errorf("unexpected values: %#v", cfg)
 	}
@@ -74,6 +77,7 @@ const testData string = `resources:
   resourcemapping:
     "8086:1520": "intel_sriov_netdevice"
 topologymanagerpolicy: "restricted"
+topologymanagerscope: "pod"
 excludelist:
   masternode: [memory, device/exampleA]
   workernode1: [memory, device/exampleB]

@@ -36,19 +36,19 @@ func TestMakeAllocatableResourcesResponseFromSysInfo(t *testing.T) {
 				CPUs: cpuset.MustParse("1-7"),
 				Resources: map[string]sysinfo.PerNUMADevices{
 					"intel_nics": map[int][]string{
-						0: []string{"0000:00:02.0", "0000:00:02.1"},
+						0: {"0000:00:02.0", "0000:00:02.1"},
 					},
 				},
 			},
 			&podresourcesapi.AllocatableResourcesResponse{
 				CpuIds: []int64{1, 2, 3, 4, 5, 6, 7},
 				Devices: []*podresourcesapi.ContainerDevices{
-					&podresourcesapi.ContainerDevices{
+					{
 						ResourceName: "intel_nics",
 						DeviceIds:    []string{"0000:00:02.0", "0000:00:02.1"},
 						Topology: &podresourcesapi.TopologyInfo{
 							Nodes: []*podresourcesapi.NUMANode{
-								&podresourcesapi.NUMANode{ID: int64(0)},
+								{ID: int64(0)},
 							},
 						},
 					},
