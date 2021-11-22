@@ -72,7 +72,7 @@ build-e2e: outdir
 
 .PHONY: test-e2e
 test-e2e: binaries build-e2e
-	_out/rte-e2e.test
+	_out/rte-e2e.test -ginkgo.skip='\[RTE\].*\[StateDirectories\]'
 
 .PHONY: test-e2e-full
 	go test -v ./test/e2e/
