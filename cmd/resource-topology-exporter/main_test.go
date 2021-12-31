@@ -94,5 +94,26 @@ func (s *ArgsParseTestSuite) TestArgsParse() {
 			// compare the default values from the file with the output from the parseArgs function
 			So(string(pArgsAsJson), ShouldResemble, string(expected))
 		})
+
+		Convey("should take topology policy and scope and from config", func() {
+			content := []byte(testData)
+			tmpfile, err := ioutil.TempFile("", "testrteconfig")
+			So(err, ShouldBeNil)
+
+			defer os.Remove(tmpfile.Name())
+
+			err = ioutil.WriteFile(tmpfile.Name(), content, 0644)
+			So(err, ShouldBeNil)
+
+			pArgs, err := parseArgs(fmt.Sprintf("--config=%s", tmpfile.Name()))
+			So(err, ShouldBeNil)
+
+			So(pArgs.RTE.TopologyManagerPolicy, ShouldEqual, "restricted")
+			So(pArgs.RTE.TopologyManagerScope, ShouldEqual, "pod")
+		})
 	})
 }
+
+const testData string = `
+topologymanagerpolicy: "restricted"
+topologymanagerscope: "pod"`
